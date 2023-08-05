@@ -1,11 +1,12 @@
 import pinocchio as pin
 import pinocchio.casadi as cpin
 import casadi as ca
-import numpy as np
 
 from typing import Union
 Vector = Union[ca.SX, ca.MX, ca.DM, list]
 SymVector = Union[ca.SX, ca.MX]
+
+sym = ca.SX.sym
 
 class DynSys():
     """ Minimal, abstract class just to standardize interfaces for systems """
@@ -31,11 +32,12 @@ class Robot(DynSys):
              - all derived quantities (for monitoring, debugging, etc) are derived from state in ::get_statedict()
         Currently, it is assumed that all subsystems can be algebraically evaluated from _xi_, i.e. they are stateless
     """
-    def __init__(self, urdf_path, subsys = []):
+    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8',subsys = []):
         """ IN: urdf_path is the location of the URDF file
+            IN: ee_frame_name is the name in the urdf file for the end-effector
             IN: subsys is a list of systems coupled to the robot
         """
-        print(f"Building robot model from {urdf_path}")
+        print(f"Building robot model from {urdf_path} with TCP {ee_frame_name}")
         if subsys: print(f"  with {len(subsys)} subsys")
 
         self.__jit_options = {} # {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
@@ -44,7 +46,8 @@ class Robot(DynSys):
         
         self.load_pin_model(urdf_path)
         self.build_vars()
-        self.build_fwd_kin()
+        self.build_fwd_kin(ee_frame_name)
+        self.build_subsys()
 
     def get_statedict(self, xi):
         """ Produce all values which are derived from state.
@@ -72,44 +75,57 @@ class Robot(DynSys):
         self.__cdata = self.__cmodel.createData()
         self.nq = self.model.nq
 
+    def get_pin_model(self):
+        return self.__cmodel, self.__cdata
+
+    def get_mass(self, q):
+        return cpin.crba(self.__cmodel, self.__cdata, q)
+
     def build_vars(self):
         """ Build symbolic variable for this system and all subsys """
-        self.__vars['q'] = ca.SX.sym('q', self.nq)      # Joint position
-        self.__vars['dq'] = ca.SX.sym('dq', self.nq)    # Joint velocity
-            
-        self.build_fwd_kin()
+        self.__vars['q']  = sym('q', self.nq)     # Joint position
+        self.__vars['dq'] = sym('dq', self.nq)    # Joint velocity
         self.__vars['xi'] = ca.vertcat(self.__vars['q'], self.__vars['dq'])
-        
+        self.nx = self.__vars['xi'].shape[0]
+
+    def build_subsys(self):
         for sys in self.__subsys:
             new_state = sys.build_vars(self.__vars['xi'], self.fwd_kin)
             self.__vars['xi'] = ca.vertcat(self.__vars['xi'], new_state)
-
         self.nx = self.__vars['xi'].shape[0]
-                
-    def build_fwd_kin(self):
-        """ This builds fwd kinematics, Jacobian matrix, and pseudoinv
+
+    def build_fwd_kin(self, ee_frame_name):
+        """ This builds fwd kinematics, Jacobian matrix, and pseudoinv to the ee_frame_name
             as CasADi fns over __vars['q'], __vars['dq']
         """
-        q = self.__vars['q']
-        dq = self.__vars['dq']
-        ddq = ca.SX.sym('ddq', self.nq) # Joint acceleration
+        q   = self.__vars['q']
+        dq  = self.__vars['dq']
+        ddq = sym('ddq', self.nq) # Joint acceleration
+        ee_ID = self.__cmodel.getFrameId(ee_frame_name)
+        
         cpin.forwardKinematics(self.__cmodel, self.__cdata, q, dq, ddq)
-        cpin.updateFramePlacement(self.__cmodel, self.__cdata, self.__cmodel.getFrameId('fr3_link8'))
-        ee = self.__cdata.oMf[self.__cmodel.getFrameId('fr3_link8')]
+        cpin.updateFramePlacement(self.__cmodel, self.__cdata, ee_ID)
+        ee = self.__cdata.oMf[ee_ID]
         self.fwd_kin = ca.Function('p',[q],[ee.translation, ee.rotation])
 
         # x_ee is TCP pose as (pos, R), where pos is a 3-Vector and R a rotation matrix
         x_ee = self.fwd_kin(q) 
         J = ca.jacobian(x_ee[0], q) # Jacobian of only position, 3 x nq
-        Jd = ca.jacobian(J.reshape((np.prod(J.shape),1)), q)@dq # Vectorize b/c jacobian of matrix tricky
+        Jd = ca.jacobian(J.reshape((3*self.nq,1)), q)@dq # Vectorize b/c jacobian of matrix tricky
         Jd = Jd.reshape(J.shape)@dq # then reshape the result into the right shape
         
         self.jac = ca.Function('jacobian', [q], [J], ['q'], ['Jac'])
         self.jacpinv = ca.Function('jac_pinv', [q], [ca.pinv(J.T)], ['q'], ['pinv']) 
+        self.tcp_motion = ca.Function('tcp', [q, dq], [x_ee[0], J@dq])
+        
+        # The Pinocchio jacobian is in TCP frame & doesn't have CasADi sparsity :(
+        #jac_exp = cpin.computeFrameJacobian(self.__cmodel, self.__cdata, q, ee_ID)
+        #self.jac_pin = ca.Function('jacobian_pin', [q], [jac_exp[:3,:]], ['q'], ['jac'])
+
         self.djac = ca.Function('dot_jacobian',  [q, dq], [Jd])
         
         self.d_fwd_kin = ca.Function('dx', [q, dq], [J@dq], ['q', 'dq'], ['dx'])
-        self.tcp_motion = ca.Function('tcp', [q, dq], [x_ee[0], J@dq])
+
         
     def build_ext_torques(self, q):
         """ Build expression for external torques
@@ -126,6 +142,24 @@ class Robot(DynSys):
         self.__vars['F_ext'] = F_ext      # make contact force an independent variable
         
     def build_disc_dyn(self, step_size, visc_fric = 30):
+        """ Build the variations of discrete dynamics
+            IN: step_size, length in seconds
+            IN: visc_fric, the viscious friction in joint space
+        """
+        self.disc_dyn_core = self.build_disc_dyn_core(step_size, visc_fric)
+
+        # Building with symbolic mass
+        Msym = cpin.crba(self.__cmodel, self.__cdata, self.__vars['xi'][:self.nq])
+        xi_next = self.disc_dyn_core(self.__vars['xi'], self.__vars['tau_input'], Msym)
+        self.disc_dyn = ca.Function('disc_dyn',
+                                    [self.__vars['xi'], self.__vars['tau_input']],
+                                    [xi_next],
+                                    ['xi', 'tau_input'],
+                                    ['xi_next'], self.__jit_options).expand()
+        #self.build_lin_dyn(Mtilde_inv, B)
+        return self.disc_dyn
+    
+    def build_disc_dyn_core(self, step_size, visc_fric = 30):
         """ Build the dynamic update equation
             IN: step_size, length in seconds
             IN: visc_fric, the viscious friction in joint space
@@ -135,14 +169,15 @@ class Robot(DynSys):
         nq2 = 2*self.nq
         q = self.__vars['q']
         dq = self.__vars['dq']
-        tau_input = ca.SX.sym('tau_input', nq) # any additional torques which will be applied
+        self.__vars['tau_input'] = sym('tau_input', nq) # any additional torques which will be applied
 
         B = ca.diag([visc_fric]*nq) # joint damping matrix for numerical stability
-
         # Inverse of mass matrix, with adjustments for numerical staiblity
-        M = cpin.crba(self.__cmodel, self.__cdata, q) # Link-side mass matrix (i.e. w/o motors)
-        M += ca.diag(0.5*ca.DM.ones(self.nq))     # Adding motor inertia to mass matrix
+        M = ca.SX.sym('M', nq, nq)
+        Mtilde = M+ca.diag(0.5*ca.DM.ones(self.nq))     # Adding motor inertia to mass matrix
         Mtilde_inv = ca.inv(M+step_size*B)   # Semi-implicit inverse of mass matrix
+        # Have done benchmarking on using ca.solve(M, I, 'ldl') and cpin.computeMinverse
+        # ca.solve: 12usec, ca.inv: 15usec, cpin: 22 usec. 
 
         # Gravitational torques
         self.__vars['tau_g'] = cpin.computeGeneralizedGravity(self.__cmodel, self.__cdata, q)
@@ -154,16 +189,15 @@ class Robot(DynSys):
         self.build_ext_torques(q)
 
         # Joint acceleration, then integrate
-        ddq = Mtilde_inv@(-B@dq + tau_err + self.__vars['tau_ext'] + tau_input)
+        ddq = Mtilde_inv@(-B@dq + tau_err + self.__vars['tau_ext'] + self.__vars['tau_input'])
         dq_next= dq + step_size*ddq
         q_next = q + step_size*dq_next
         xi_next = ca.vertcat(q_next, dq_next, self.__vars['xi'][nq2:])
         
-        self.disc_dyn = ca.Function('disc_dyn', [self.__vars['xi'], tau_input], [xi_next],
-                                    ['xi', 'tau_input'],
+        disc_dyn_core = ca.Function('disc_dyn', [self.__vars['xi'], self.__vars['tau_input'], M], [xi_next],
+                                    ['xi', 'tau_input', 'mass matrix'],
                                     ['xi_next'], self.__jit_options).expand()
-        #self.build_lin_dyn(Mtilde_inv, B)
-        return self.disc_dyn
+        return disc_dyn_core
 
     def build_lin_dyn(self, Mtilde_inv, B):
         tau_ext = self.__vars['tau_ext']
@@ -174,7 +208,7 @@ class Robot(DynSys):
 
         #A = ca.jacobian(self.vars['xi_next'], self.vars['xi']) # Old method which is slightly less efficient
         A = ca.SX.eye(self.nx)
-        A[:nq, :nq]       +=  h*h*ddelta_dq
+        A[:nq, :nq]       += h*h*ddelta_dq
         A[:nq, nq:nq2]    += h*ca.SX.eye(nq)+h*h*ddelta_ddq
         A[:nq, nq2:]      += h*h*ddelta_dp
         A[nq:nq2, :nq]    += h*ddelta_dq

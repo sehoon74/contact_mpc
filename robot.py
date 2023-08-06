@@ -6,8 +6,6 @@ from typing import Union
 Vector = Union[ca.SX, ca.MX, ca.DM, list]
 SymVector = Union[ca.SX, ca.MX]
 
-sym = ca.SX.sym
-
 class DynSys():
     """ Minimal, abstract class just to standardize interfaces for systems """
     def __init__(self):
@@ -32,7 +30,7 @@ class Robot(DynSys):
              - all derived quantities (for monitoring, debugging, etc) are derived from state in ::get_statedict()
         Currently, it is assumed that all subsystems can be algebraically evaluated from _xi_, i.e. they are stateless
     """
-    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8',subsys = []):
+    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8', subsys = []):
         """ IN: urdf_path is the location of the URDF file
             IN: ee_frame_name is the name in the urdf file for the end-effector
             IN: subsys is a list of systems coupled to the robot
@@ -83,8 +81,8 @@ class Robot(DynSys):
 
     def build_vars(self):
         """ Build symbolic variable for this system and all subsys """
-        self.__vars['q']  = sym('q', self.nq)     # Joint position
-        self.__vars['dq'] = sym('dq', self.nq)    # Joint velocity
+        self.__vars['q']  = ca.SX.sym('q', self.nq)     # Joint position
+        self.__vars['dq'] = ca.SX.sym('dq', self.nq)    # Joint velocity
         self.__vars['xi'] = ca.vertcat(self.__vars['q'], self.__vars['dq'])
         self.nx = self.__vars['xi'].shape[0]
 
@@ -100,7 +98,7 @@ class Robot(DynSys):
         """
         q   = self.__vars['q']
         dq  = self.__vars['dq']
-        ddq = sym('ddq', self.nq) # Joint acceleration
+        ddq = ca.SX.sym('ddq', self.nq) # Joint acceleration
         ee_ID = self.__cmodel.getFrameId(ee_frame_name)
         
         cpin.forwardKinematics(self.__cmodel, self.__cdata, q, dq, ddq)
@@ -169,7 +167,7 @@ class Robot(DynSys):
         nq2 = 2*self.nq
         q = self.__vars['q']
         dq = self.__vars['dq']
-        self.__vars['tau_input'] = sym('tau_input', nq) # any additional torques which will be applied
+        self.__vars['tau_input'] = ca.SX.sym('tau_input', nq) # any additional torques which will be applied
 
         B = ca.diag([visc_fric]*nq) # joint damping matrix for numerical stability
         # Inverse of mass matrix, with adjustments for numerical staiblity

@@ -64,10 +64,7 @@ class Robot(DynSys):
         for sys in self.__subsys:
             sym.update(sys.get_symdict())
         return sym
-
-    def get_mass(self, q):
-        return cpin.crba(self.__cmodel, self.__cdata, q)
-
+        
     def load_pin_model(self, urdf_path):
         """ Load the Pinocchio model from the URDF file """
         self.model = pin.buildModelsFromUrdf(urdf_path, verbose = True)[0]
@@ -75,6 +72,12 @@ class Robot(DynSys):
         self.__cmodel = cpin.Model(self.model)
         self.__cdata = self.__cmodel.createData()
         self.nq = self.model.nq
+
+    def get_pin_model(self):
+        return self.__cmodel, self.__cdata
+
+    def get_mass(self, q):
+        return cpin.crba(self.__cmodel, self.__cdata, q)
 
     def build_vars(self):
         """ Build symbolic variable for this system and all subsys """

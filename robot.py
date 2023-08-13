@@ -2,19 +2,21 @@ import pinocchio as pin
 import pinocchio.casadi as cpin
 import casadi as ca
 
+from decision_vars import DecisionVarSet
+
 from typing import Union
-Vector = Union[ca.SX, ca.MX, ca.DM, list]
+Vector = Union[ca.SX, ca.MX, ca.DM]
 SymVector = Union[ca.SX, ca.MX]
 
 class DynSys():
-    """ Minimal, abstract class just to standardize interfaces for systems """
+    """ Minimal, abstract class to standardize interfaces """
     def __init__(self):
         return NotImplementedError
     
     def get_statedict(self, xi:Vector) -> dict:
         return NotImplementedError
 
-    def get_symdict(self) -> SymVector:
+    def get_dec_vars(self) -> DecisionVarSet:
         return NotImplementedError
         
     def build_vars(self) -> Vector:
@@ -55,14 +57,14 @@ class Robot(DynSys):
              'dq':xi[self.nq:2*self.nq],
              'xi':xi}
         for sys in self.__subsys:
-            d.update(sys.get_statedict(xi))
+            d += sys.get_statedict(xi)
         return d
 
-    def get_symdict(self):
-        """ Gather all symbolic variables """
+    def get_dec_vars(self):
+        """ Gather all decision variables """
         sym = {'xi':self.__vars['xi']}
         for sys in self.__subsys:
-            sym.update(sys.get_symdict())
+            sym += sys.get_symdict()
         return sym
 
     def get_mass(self, q):

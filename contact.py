@@ -35,7 +35,7 @@ class Contact(DynSys):
     Return the statedict variables evaluated at the numerical values 
     """
     def get_statedict(self, num_dict):
-        fn_input = {k:num_dict[k] for k in self.__vars}
+        fn_input = {k:num_dict[k] for k in ['p', 'R']+self.__vars}
         return self.statedict_fn(fn_input)
 
     """

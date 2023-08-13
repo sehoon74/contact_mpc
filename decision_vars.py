@@ -60,6 +60,8 @@ class DecisionVarSet(dict):
         assert set(self.get_attr_list()) == set(other.get_attr_list()), "Dictionaries don't have matching attributes"
         for attr in self.get_attr_list():
             self.__vars[attr].update(other.get_attr(attr))
+        for k in self.__vars['sym']:
+            super().__setitem__(k, self.__vars['sym'][k])
         return self
     
     def __len__(self):
@@ -69,11 +71,11 @@ class DecisionVarSet(dict):
         s = "***** Decision Vars *****\n"
         s += f"Attributes: {self.get_attr_list()}\n"
         s += "Vars: \n"
-        for key in self.__vars['sym'].keys():
+        for key in self.__vars['sym']:
             s += f"  {key}: {self[key]}, {self[key].shape}\n"
         return s
     
-    def vectorize(self, attr):
+    def vectorize(self, attr = 'sym'):
         return ca.vertcat(*[el.reshape((-1,1)) for el in self.__vars[attr].values()])
 
     def dictize(self, vec):

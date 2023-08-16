@@ -1,0 +1,13 @@
+proc_noise:
+  q: 1e1
+  dq: 1e4
+  pos: 1e1
+  stiff: 5e10
+cov_init:
+  q: 1e-1
+  dq: 1e5
+  pos: 1.5e6
+  stiff: 6e15
+meas_noise:
+  pos: 1e-5
+  torques: 1e1

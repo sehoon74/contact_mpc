@@ -23,29 +23,37 @@ Additional attributes can be specified in **kwargs by giving dicts
 """
 class DecisionVarSet(dict):
     """
-    IN: inits, a dictionary with the name and initializing value of the symbolic variables
-    IN: sym, the type of symbolic variable to create
+    IN: attrs, a list of the attributes
     IN: attr_defaults, a dictionary of the default values to use for an attribute
+    IN: sym, the type of symbolic variable to create
     IN: **kwargs, additional attributes, where the value is a dict with keys for all keys in inits
     """
     def __init__(self,
-                 inits,
-                 sym = ca.SX.sym,
+                 attrs,
                  attr_defaults = dict(lb = -np.inf, ub = np.inf, cov = 0, noise = 0,),
-                 **kwargs):
+                 sym = ca.SX.sym):
         super().__init__()
-        assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"        
-        
-        self.__vars = {k:{} for k in ['sym', 'init']+list(kwargs.keys())}
-            
+        assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                
+        self.__attrs = attrs
+        self.__vars = {k:{} for k in ['sym', 'init']+attrs}
+        self.__defaults = attr_defaults
+        self.__sym = sym
+
+    def add_vars(self, inits = {}, **kwargs):
+        assert inits or 'inits' in kwargs, f"Need inits for your variables! Have attrs {list(kwargs.keys())}"
+        if not inits:
+            inits = kwargs.pop('inits')
+
         for name, init in inits.items():
             init = np.array(init)
             self.__vars['init'][name] = init
-            self.__vars['sym'][name] = sym(name, *init.shape)
-            for attr, vals in kwargs.items():
-                assert set(vals) <= set(inits), f"All attribute {attr} keys must be in inits"
-                assert attr in attr_defaults or name in vals, f"Attribute for {name} must have either defaults or specified in kwargs" 
-                self.__vars[attr][name] = np.full(init.shape, vals.get(name, attr_defaults.get(attr)))
+            self.__vars['sym'][name] = self.__sym(name, *init.shape)
+
+            # Add the additional attributes for each variable
+            for attr in self.__attrs:
+                vals = kwargs[attr]
+                assert attr in self.__defaults or name in vals, f"Attribute for {name} must have either defaults or specified in kwargs" 
+                self.__vars[attr][name] = np.full(init.shape, vals.get(name, self.__defaults.get(attr)))
 
         for k in self.__vars['sym']:
             super().__setitem__(k, self.__vars['sym'][k])
@@ -56,8 +64,11 @@ class DecisionVarSet(dict):
     def __delitem__(self, key):
         raise NotImplementedError
 
+    """
+    Adds other variables to self, the attributes are projected down to those in self
+    """
     def __add__(self, other):
-        assert set(self.get_attr_list()) == set(other.get_attr_list()), "Dictionaries don't have matching attributes"
+        assert set(self.get_attr_list()) <= set(other.get_attr_list()), "LHS set has attributes that RHS doesn't"
         for attr in self.get_attr_list():
             self.__vars[attr].update(other.get_attr(attr))
         for k in self.__vars['sym']:
@@ -72,7 +83,7 @@ class DecisionVarSet(dict):
         s += f"Attributes: {self.get_attr_list()}\n"
         s += "Vars: \n"
         for key in self.__vars['sym']:
-            s += f"  {key}: {self[key]}, {self[key].shape}\n"
+            s += f"  {key}: {self[key]}, shape: {self[key].shape}\n"
         return s
     
     def vectorize(self, attr = 'sym'):

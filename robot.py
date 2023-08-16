@@ -1,12 +1,39 @@
 import pinocchio as pin
 import pinocchio.casadi as cpin
 import casadi as ca
+import ruamel.yaml as yaml 
 
 from decision_vars import DecisionVarSet
+from contact import Contact
 
 from typing import Union
 Vector = Union[ca.SX, ca.MX, ca.DM]
 SymVector = Union[ca.SX, ca.MX]
+
+def yaml_load(path):
+    try:
+        with open(path, 'r') as f:
+            params = yaml.load(f, Loader = yaml.Loader)
+    except:
+        print(f"Error loading yaml from path {path}")
+    return params
+
+def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
+    robot_params = yaml_load(robot_path)
+    attrs = yaml_load(attr_path)
+    attrs_state = {n:attrs[n] for n in ["proc_noise", "cov_init"]}
+    contact_params = yaml_load(contact_path) if contact_path else {}
+    contact_models = {}
+    for model in contact_params.get('models'):
+        contact_models[model] = Contact(contact_params['models'][model],
+                                        attrs = attrs_state,
+                                        sym_vars = sym_vars)
+    modes = {}
+    for mode in contact_params.get('modes'):
+        modes[mode] = Robot(robot_params['urdf_path'],
+                            attrs = attrs_state,
+                            subsys = [contact_models[model] for model in contact_params['modes'][mode]])
+    return modes
 
 class DynSys():
     """ Minimal, abstract class to standardize interfaces """
@@ -32,9 +59,10 @@ class Robot(DynSys):
              - all derived quantities (for monitoring, debugging, etc) are derived from state in ::get_statedict()
         Currently, it is assumed that all subsystems can be algebraically evaluated from _xi_, i.e. they are stateless
     """
-    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8', subsys = []):
+    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8', attrs = {}, subsys = []):
         """ IN: urdf_path is the location of the URDF file
             IN: ee_frame_name is the name in the urdf file for the end-effector
+            IN: attrs for the robot variables (e.g. initial value, lower/upper bounds)
             IN: subsys is a list of systems coupled to the robot
         """
         print(f"Building robot model from {urdf_path} with TCP {ee_frame_name}")
@@ -45,9 +73,9 @@ class Robot(DynSys):
         self.__subsys = subsys  # subsystems which are coupled to the robot  
         
         self.load_pin_model(urdf_path)
-        self.build_vars()
+        self.build_vars(attrs)
         self.build_fwd_kin(ee_frame_name)
-        self.build_subsys()
+        self.add_subsys()
 
     def get_statedict(self, xi):
         """ Produce all values which are derived from state.
@@ -58,9 +86,6 @@ class Robot(DynSys):
         for sys in self.__subsys:
             d += sys.get_statedict(d)
         return d
-
-    def get_dec_vars(self):
-        return self.__vars
 
     def get_mass(self, q):
         return cpin.crba(self.__cmodel, self.__cdata, q)
@@ -73,19 +98,16 @@ class Robot(DynSys):
         self.__cdata = self.__cmodel.createData()
         self.nq = self.model.nq
 
-    def build_vars(self):
-        """ Build symbolic variable for this system and all subsys """
+    def build_vars(self, attrs = {}):
+        """ Build symbolic variables with attributes """
+        self.__vars = DecisionVarSet(list(attrs.keys()))
         inits = dict(q=ca.DM.zeros(self.nq), dq=ca.DM.zeros(self.nq))
-        cov = dict(q=0.2, dq=1.3)
-        noise = dict(q=1e-3, dq=1e1)
-            
-        self.__vars = DecisionVarSet(inits, cov=cov, noise=noise)
+        self.__vars.add_vars(inits=inits, **attrs)
 
-    def build_subsys(self):
+    def add_subsys(self):
         for sys in self.__subsys:
             self.__vars += sys.get_dec_vars()
-        print(self.__vars)
-
+            
     def build_fwd_kin(self, ee_frame_name):
         """ This builds fwd kinematics, Jacobian matrix, and pseudoinv to the ee_frame_name
             as CasADi fns over __vars['q'], __vars['dq']

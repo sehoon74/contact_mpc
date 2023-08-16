@@ -15,18 +15,20 @@ Important variables:
 class Contact(DynSys):
     """
     IN: pars, a dict with pos, stiff and rest, each a vector of length 3
-    IN: sym_attrs, a nested dict {attr:{name:value}}
+    IN: attrs, a nested dict of additional variable attributes {attr:{name:value}}
     """
-    def __init__(self, pars, sym_vars = [], sym_attrs = {}):
+    def __init__(self, pars, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.__pars = {k:ca.DM(v) for k,v in pars.items()}        
-        self.build_vars(sym_vars, sym_attrs)
+        self.build_vars(sym_vars, attrs)
         self.build_contact()
 
-    def build_vars(self, sym_vars, sym_attrs):
-        init = {k: self.__pars[k] for k in sym_vars}
-        self.__vars = DecisionVarSet(init, **sym_attrs)
-        self.__pars.update(self.__vars)
+    def build_vars(self, sym_vars, attrs):
+        self.__vars = DecisionVarSet(attrs = list(attrs.keys()))
+        if sym_vars:
+            inits = {k: self.__pars[k] for k in sym_vars}
+            self.__vars.add_vars(inits = inits, **attrs)
+            self.__pars.update(self.__vars)
 
     def get_dec_vars(self):
         return self.__vars

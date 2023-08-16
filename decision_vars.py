@@ -51,8 +51,8 @@ class DecisionVarSet(dict):
 
             # Add the additional attributes for each variable
             for attr in self.__attrs:
+                assert attr in self.__defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
                 vals = kwargs[attr]
-                assert attr in self.__defaults or name in vals, f"Attribute for {name} must have either defaults or specified in kwargs" 
                 self.__vars[attr][name] = np.full(init.shape, vals.get(name, self.__defaults.get(attr)))
 
         for k in self.__vars['sym']:

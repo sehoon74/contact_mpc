@@ -8,11 +8,4 @@ joint_names:
   - panda_joint6
   - panda_joint7
 fric_model:
-  visc:
-    - 40.4
-    - 40.4
-    - 40.4
-    - 40.4
-    - 40.4
-    - 40.4
-    - 40.4
+  visc: 40

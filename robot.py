@@ -1,39 +1,13 @@
 import pinocchio as pin
 import pinocchio.casadi as cpin
 import casadi as ca
-import ruamel.yaml as yaml 
+
 
 from decision_vars import DecisionVarSet
-from contact import Contact
 
 from typing import Union
 Vector = Union[ca.SX, ca.MX, ca.DM]
 SymVector = Union[ca.SX, ca.MX]
-
-def yaml_load(path):
-    try:
-        with open(path, 'r') as f:
-            params = yaml.load(f, Loader = yaml.Loader)
-    except:
-        print(f"Error loading yaml from path {path}")
-    return params
-
-def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
-    robot_params = yaml_load(robot_path)
-    attrs = yaml_load(attr_path)
-    attrs_state = {n:attrs[n] for n in ["proc_noise", "cov_init"]}
-    contact_params = yaml_load(contact_path) if contact_path else {}
-    contact_models = {}
-    for model in contact_params.get('models'):
-        contact_models[model] = Contact(contact_params['models'][model],
-                                        attrs = attrs_state,
-                                        sym_vars = sym_vars)
-    modes = {}
-    for mode in contact_params.get('modes'):
-        modes[mode] = Robot(robot_params['urdf_path'],
-                            attrs = attrs_state,
-                            subsys = [contact_models[model] for model in contact_params['modes'][mode]])
-    return modes
 
 class DynSys():
     """ Minimal, abstract class to standardize interfaces """
@@ -44,9 +18,6 @@ class DynSys():
         return NotImplementedError
 
     def get_dec_vars(self) -> DecisionVarSet:
-        return NotImplementedError
-        
-    def build_vars(self) -> Vector:
         return NotImplementedError
     
 class Robot(DynSys):
@@ -66,7 +37,7 @@ class Robot(DynSys):
             IN: subsys is a list of systems coupled to the robot
         """
         print(f"Building robot model from {urdf_path} with TCP {ee_frame_name}")
-        if subsys: print(f"  with {len(subsys)} subsys")
+        if subsys: print(f"  with subsys {[s.name for s in subsys]}")
 
         self.__jit_options = {} # {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
         self.__vars = {}        # decision var set
@@ -84,7 +55,7 @@ class Robot(DynSys):
         d = self.__vars.dictize(xi) # Break xi into state variable dict
         d['p'], d['R'] = self.fwd_kin(d['q'])
         for sys in self.__subsys:
-            d += sys.get_statedict(d)
+            d.update(sys.get_statedict(d))
         return d
 
     def get_mass(self, q):
@@ -233,7 +204,7 @@ class Robot(DynSys):
         arg_dict = {k:self.__vars[k] for k in self.__vars if k not in ['q', 'dq']}
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
         for sys in self.__subsys:
-            F_ext += sys.F_fn.call(arg_dict)['F']
+            F_ext += sys.get_force(arg_dict)
         return F_ext
         
     def get_tcp_motion(self, q, dq):

@@ -17,17 +17,24 @@ class Contact(DynSys):
     IN: pars, a dict with pos, stiff and rest, each a vector of length 3
     IN: attrs, a nested dict of additional variable attributes {attr:{name:value}}
     """
-    def __init__(self, pars, sym_vars = [], attrs = {}):
+    def __init__(self, name, pars, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
-        self.__pars = {k:ca.DM(v) for k,v in pars.items()}        
+        self.name = name
+        self.__pars = {self.ns(k):ca.DM(v) for k,v in pars.items()}        
         self.build_vars(sym_vars, attrs)
         self.build_contact()
 
+    def ns(self, s):
+        return self.name+'/'+s
+    
     def build_vars(self, sym_vars, attrs):
-        self.__vars = DecisionVarSet(attrs = list(attrs.keys()))
+        ns_attrs = {}
+        for name, attr in attrs.items():
+            ns_attrs[name] = {self.ns(k):v for k,v in attr.items()}
+        self.__vars = DecisionVarSet(attrs = list(ns_attrs.keys()))
         if sym_vars:
-            inits = {k: self.__pars[k] for k in sym_vars}
-            self.__vars.add_vars(inits = inits, **attrs)
+            inits = {self.ns(k): self.__pars[self.ns(k)] for k in sym_vars}
+            self.__vars.add_vars(inits = inits, **ns_attrs)
             self.__pars.update(self.__vars)
 
     def get_dec_vars(self):
@@ -37,21 +44,22 @@ class Contact(DynSys):
     Return the statedict variables evaluated at the numerical values 
     """
     def get_statedict(self, num_dict):
-        fn_input = {k:num_dict[k] for k in ['p', 'R']+self.__vars}
-        return self.statedict_fn(fn_input)
+        fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self.__vars.keys())}
+        res = self.statedict_fn(**fn_input)
+        return {self.ns(k):v for k, v in res.items()}
 
     """
     Build the contact forces and torques
-    """
+    """    
     def build_contact(self):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)
-        x = p + R@self.__pars['pos']
-        disp = x - self.__pars['pos']
-        n = self.__pars['stiff']/ca.norm_2(self.__pars['stiff'])
-        F = ca.times(self.__pars['stiff'],(self.__pars['rest']-x)) # Forces in world coord
+        x = p + R@self.__pars[self.ns('pos')]
+        disp = x - self.__pars[self.ns('pos')]
+        n = self.__pars[self.ns('stiff')]/ca.norm_2(self.__pars[self.ns('stiff')])
+        F = ca.times(self.__pars[self.ns('stiff')],(self.__pars[self.ns('rest')]-x)) # Forces in world coord
 
-        self.F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self.__vars),
+        self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self.__vars),
                                 ['p', 'R', *self.__vars.keys()],
                                 ['F'])
         
@@ -59,5 +67,8 @@ class Contact(DynSys):
         self.statedict_fn = ca.Function('statedict_fn', fn_dict,
                                         ['p', 'R', *self.__vars.keys()],
                                         ['x', 'disp', 'n', 'F'])
-        
-        
+
+    # Filter out unnecessary parameters and call the force fn
+    def get_force(self, args):
+        filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self.__vars.keys())}
+        return self.__F_fn(**filtered_args)['F']

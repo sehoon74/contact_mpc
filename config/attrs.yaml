@@ -11,3 +11,7 @@ cov_init:
 meas_noise:
   pos: 1e-5
   torques: 1e1
+lb:
+  imp_stiff: 1e-4
+ub:
+  imp_stiff: 400

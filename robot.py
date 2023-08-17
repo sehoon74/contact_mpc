@@ -52,6 +52,7 @@ class Robot(DynSys):
         """ Produce all values which are derived from state.
             IN: complete state xi
         """
+        if type(xi) == ca.DM: xi = xi.full()
         d = self.__vars.dictize(xi) # Break xi into state variable dict
         d['p'], d['R'] = self.fwd_kin(d['q'])
         for sys in self.__subsys:
@@ -78,6 +79,21 @@ class Robot(DynSys):
     def add_subsys(self):
         for sys in self.__subsys:
             self.__vars += sys.get_dec_vars()
+
+    def add_imp_ctrl(self):
+        # If we want these in __vars (e.g. we´ll provide them to the MPC problem)
+        #inits = dict(imp_rest = ca.DM.zeros(3),
+        #             imp_stiff = ca.DM.ones(3),)
+        # somehow add inits to the sym variables?
+
+        imp_stiff = ca.SX.sym('imp_stiff', N_p)
+        imp_damp = 3*ca.sqrt(imp_stiff)
+        imp_rest = ca.SX.sym('imp_rest', N_p)
+        
+        x, dx = self.get_tcp_motion(self.__vars['q'], self.__vars['dq'])
+        F_imp = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest - x0)
+        tau_imp = self.jac(self.__vars['q']).T@F_imp
+        
             
     def build_fwd_kin(self, ee_frame_name):
         """ This builds fwd kinematics, Jacobian matrix, and pseudoinv to the ee_frame_name
@@ -124,7 +140,7 @@ class Robot(DynSys):
         tau_input = ca.SX.sym('tau_in', self.nq)
         xi_next = self.disc_dyn_core(xi, tau_input, Msym)
         self.disc_dyn = ca.Function('disc_dyn',
-                                    [xi, tau_input],
+                                    [self.__vars.keys(), tau_input],
                                     [xi_next],
                                     ['xi', 'tau_input'],
                                     ['xi_next'], self.__jit_options).expand()
@@ -160,15 +176,15 @@ class Robot(DynSys):
 
         F_ext = self.get_F_ext(q)
         tau_ext = self.jac(q).T@self.get_F_ext(q)
+
+        arg = {k:v for k,v in self.__vars.items() if not in ['q', 'dq']}
         
         # Joint acceleration, then integrate
         ddq = Mtilde_inv@(-B@dq + tau_err + tau_ext + tau_input)
-        dq_next= dq + step_size*ddq
-        q_next = q + step_size*dq_next
-        xi = self.__vars.vectorize()
-        xi_next = ca.vertcat(q_next, dq_next, xi[nq2:])
-        
-        disc_dyn_core = ca.Function('disc_dyn', [xi, tau_input, M], [xi_next],
+        arg['dq_next'] = dq + step_size*ddq
+        arg['q_next'] = q + step_size*dq_next
+        # TODO: Check about rewriting to dict
+        disc_dyn_core = ca.Function('disc_dyn', arg
                                     ['xi', 'tau_input', 'mass matrix'],
                                     ['xi_next'], self.__jit_options).expand()
         return disc_dyn_core
@@ -199,7 +215,8 @@ class Robot(DynSys):
         self.__vars['y'] = ca.vertcat(self.__vars['q'], self.__vars['tau_ext'])
         self.obs = ca.Function('obs', [self.___vars['xi']], [y], ['xi'], ['y'])
 
-    def get_F_ext(self, q):
+    # Returns the force on the TCP expressed in world coordinates
+    def get_F(self, q):
         F_ext = 0
         arg_dict = {k:self.__vars[k] for k in self.__vars if k not in ['q', 'dq']}
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)

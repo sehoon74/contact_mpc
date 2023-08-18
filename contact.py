@@ -51,7 +51,7 @@ class Contact(DynSys):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)
         x = p + R@self.__pars['pos']
-        disp = x - self.__pars['pos']
+        disp = x - self.__pars['rest']
         n = self.__pars['stiff']/ca.norm_2(self.__pars['stiff'])
         F = ca.times(self.__pars['stiff'],(self.__pars['rest']-x)) # Forces in world coord
 
@@ -70,6 +70,4 @@ class Contact(DynSys):
     def get_force(self, args):
         filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self.__vars.keys())}
         return self.__F_fn(**filtered_args)['F']
-
-
     

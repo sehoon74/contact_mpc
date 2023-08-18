@@ -116,7 +116,7 @@ class Robot(DynSys):
         dq = self.__state['dq']
         inp_args = self.__state.get_attr('sym')
 
-        tau_ext = self.jac(q).T@self.get_F(q)
+        tau_ext = self.jac(q).T@self.get_F(q, dq)
         
         inp_args['tau_input'] = ca.SX.sym('tau_input', nq) # any additional torques which will be applied
         
@@ -139,7 +139,7 @@ class Robot(DynSys):
         A = ca.jacobian(xi_next, self.__xi)
         C = ca.jacobian(self.__y, self.__xi)
         self.linearized = ca.Function('linearized', [self.__xi, self.__u, inp_args['M_inv'],], [A, C, xi_next, self.__y],
-                                                    ['xi', 'tau_input', 'M_inv'], ['A', 'C', 'xi_next', 'y'])
+                                                    ['xi', 'tau_input', 'M_inv'], ['A', 'C', 'xi_next', 'y']).expand()
 
     def get_ekf_info(self):
         proc_noise = ca.diag(self.__state.vectorize(attr='proc_noise'))
@@ -149,10 +149,11 @@ class Robot(DynSys):
         return self.__state.get_vectors('init', 'cov_init')
     
     # Returns the force on the TCP expressed in world coordinates
-    def get_F(self, q):
+    def get_F(self, q, dq):
         F_ext = ca.DM.zeros(3)
         arg_dict = {k:self.__state[k] for k in self.__state if k not in ['q', 'dq']}
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
+        arg_dict['dx'] = self.tcp_motion(q, dq)[1]
         for sys in self.__subsys:
             F_ext += sys.get_force(arg_dict)
         return F_ext
@@ -166,7 +167,9 @@ class Robot(DynSys):
         """ Produce all values which are derived from state.
             IN: complete state in dictionary d
         """
+        d = {k:v for k, v in d.items()}
         d['p'], d['R'] = self.fwd_kin(d['q'])
+        d['dx'] = self.tcp_motion(d['q'], d['dq'])[1]
         for sys in self.__subsys:
             d.update(sys.get_statedict(d))
         return d

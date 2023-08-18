@@ -23,19 +23,22 @@ Additional attributes can be specified in **kwargs by giving dicts
 """
 class DecisionVarSet(dict):
     """
-    IN: attrs, a list of the attributes
+    IN: attr_names, a list of strings for the attributes
+    IN: name, a prefix for variables to prename
     IN: attr_defaults, a dictionary of the default values to use for an attribute
     IN: sym, the type of symbolic variable to create
     IN: **kwargs, additional attributes, where the value is a dict with keys for all keys in inits
     """
     def __init__(self,
-                 attrs,
+                 attr_names,
+                 name = '',
                  attr_defaults = dict(lb = -np.inf, ub = np.inf, cov = 0, noise = 0,),
                  sym = ca.SX.sym):
         super().__init__()
         assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                
-        self.__attrs = attrs
-        self.__vars = {k:{} for k in ['sym', 'init']+attrs}
+        self.name = name
+        self.__attrs = attr_names
+        self.__vars = {k:NamedDict(name) for k in ['sym', 'init']+attr_names}
         self.__defaults = attr_defaults
         self.__sym = sym
 
@@ -43,7 +46,7 @@ class DecisionVarSet(dict):
         assert inits or 'inits' in kwargs, f"Need inits for your variables! Have attrs {list(kwargs.keys())}"
         if not inits:
             inits = kwargs.pop('inits')
-
+            
         for name, init in inits.items():
             init = np.array(init)
             self.__vars['init'][name] = init
@@ -56,7 +59,7 @@ class DecisionVarSet(dict):
                 self.__vars[attr][name] = np.full(init.shape, vals.get(name, self.__defaults.get(attr)))
 
         for k in self.__vars['sym']:
-            super().__setitem__(k, self.__vars['sym'][k])
+            super().__setitem__(k, self.__vars['sym'].get(k))
                  
     def __setitem__(self, key, value):
         raise NotImplementedError
@@ -72,7 +75,7 @@ class DecisionVarSet(dict):
         for attr in self.get_attr_list():
             self.__vars[attr].update(other.get_attr(attr))
         for k in self.__vars['sym']:
-            super().__setitem__(k, self.__vars['sym'][k])
+            super().__setitem__(k, self.__vars['sym'].get(k))
         return self
     
     def __len__(self):
@@ -117,5 +120,34 @@ class DecisionVarSet(dict):
         return list(self.__vars.keys())
 
     def get_attr(self, attr):
-        return self.__vars[attr]
-                                            
+        return {k:self.__vars[attr].get(k) for k in self.__vars[attr].keys()}
+
+    def get_mpc_vars(self, H, vars_to_get):
+        assert all(vars_to_get in self.__vars['sym']), f'vars_to_get {vars_to_get} should be in the dec vars'
+        mpc_attrs = ['init', 'lb', 'ub']
+        assert all(mpc_attrs in self.__vars), f'need attrs of sym, init, lb and ub, have {self.__vars.keys()}'
+        attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in vars_to_get} for attr in self.__vars.keys()}
+        dec_vars = DecisionVarSet(attrs, attr_defaults=self.__defaults)
+        dec_vars.add_vars(attrs)
+        return dec_vars
+
+class ParamSet(DecisionVarSet):
+    def __init__(self, inits, sym = ca.SX.sym):
+        super().__init__(attr=[], sym = sym)
+        super().add_vars(inits = inits)
+
+
+"""
+Class which prefixes the name on the keys for gets and sets via []
+"""
+class NamedDict(dict):
+    def __init__(self, name, d = {}):
+        self.name = name
+        for k, v in d.items():
+            self[k] = v
+        
+    def __setitem__(self, k, v):
+        super().__setitem__(self.name+k, v)
+        
+    def __getitem__(self, k):
+        return super().__getitem__(self.name+k)

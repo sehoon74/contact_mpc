@@ -2,7 +2,6 @@ import pinocchio as pin
 import pinocchio.casadi as cpin
 import casadi as ca
 
-
 from decision_vars import DecisionVarSet
 
 from typing import Union
@@ -24,13 +23,13 @@ class Robot(DynSys):
     """ This class handles the loading of robot dynamics/kinematics, the discretization/integration, and linearization.
         Rough design principles:
           This class is _stateless_, meaning
-             - produces only pure functions (same result for same input)
+             - it produces only pure functions
              - actual state should be stored elsewhere
           The state variable (xi) is _minimal_, meaning
-             - all derived quantities (for monitoring, debugging, etc) are derived from state in ::get_statedict()
+             - all derived quantities (for monitoring, debugging, etc) are calculated from _xi_ in ::get_statedict()
         Currently, it is assumed that all subsystems can be algebraically evaluated from _xi_, i.e. they are stateless
     """
-    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8', attrs = {}, subsys = []):
+    def __init__(self, urdf_path, ee_frame_name = 'fr3_link8', attrs = {}, subsys = [], visc_fric = 30):
         """ IN: urdf_path is the location of the URDF file
             IN: ee_frame_name is the name in the urdf file for the end-effector
             IN: attrs for the robot variables (e.g. initial value, lower/upper bounds)
@@ -44,23 +43,10 @@ class Robot(DynSys):
         self.__subsys = subsys  # subsystems which are coupled to the robot  
         
         self.load_pin_model(urdf_path)
+        self.visc_fric = visc_fric*ca.DM.eye(self.nq)
         self.build_vars(attrs)
         self.build_fwd_kin(ee_frame_name)
         self.add_subsys()
-
-    def get_statedict(self, xi):
-        """ Produce all values which are derived from state.
-            IN: complete state xi
-        """
-        if type(xi) == ca.DM: xi = xi.full()
-        d = self.__vars.dictize(xi) # Break xi into state variable dict
-        d['p'], d['R'] = self.fwd_kin(d['q'])
-        for sys in self.__subsys:
-            d.update(sys.get_statedict(d))
-        return d
-
-    def get_mass(self, q):
-        return cpin.crba(self.__cmodel, self.__cdata, q)
 
     def load_pin_model(self, urdf_path):
         """ Load the Pinocchio model from the URDF file """
@@ -124,30 +110,29 @@ class Robot(DynSys):
         #self.jac_pin = ca.Function('jacobian_pin', [q], [jac_exp[:3,:]], ['q'], ['jac'])
 
         self.djac = ca.Function('dot_jacobian',  [q, dq], [Jd])
-        
         self.d_fwd_kin = ca.Function('dx', [q, dq], [J@dq], ['q', 'dq'], ['dx'])
         
-    def build_disc_dyn(self, step_size, visc_fric = 30):
+    def build_disc_dyn(self, step_size):
         """ Build the variations of discrete dynamics
             IN: step_size, length in seconds
             IN: visc_fric, the viscious friction in joint space
         """
-        self.disc_dyn_core = self.build_disc_dyn_core(step_size, visc_fric)
+        self.build_disc_dyn_core(step_size)
 
         # Building with symbolic mass
-        Msym = cpin.crba(self.__cmodel, self.__cdata, self.__vars['q'])
-        xi = self.__vars.vectorize()
-        tau_input = ca.SX.sym('tau_in', self.nq)
-        xi_next = self.disc_dyn_core(xi, tau_input, Msym)
-        self.disc_dyn = ca.Function('disc_dyn',
-                                    [self.__vars.keys(), tau_input],
-                                    [xi_next],
-                                    ['xi', 'tau_input'],
-                                    ['xi_next'], self.__jit_options).expand()
+        args = self.__vars.get_attr('sym')
+        args['tau_input'] = ca.SX.sym('tau_input', self.nq)
+        inp_keys = list(args.keys())
+        args_core = {k:v for k,v in args.items()}
+        args_core['M_inv'] = self.get_inv_mass(self.__vars['q'], step_size = step_size)
+        args.update(self.disc_dyn_core.call(args_core))
+        self.disc_dyn = ca.Function('disc_dyn', args,
+                                    [*inp_keys],
+                                    ['q_next', 'dq_next'], self.__jit_options).expand()
         #self.build_lin_dyn(Mtilde_inv, B)
         return self.disc_dyn
     
-    def build_disc_dyn_core(self, step_size, visc_fric = 30):
+    def build_disc_dyn_core(self, step_size):
         """ Build the dynamic update equation
             IN: step_size, length in seconds
             IN: visc_fric, the viscious friction in joint space
@@ -157,16 +142,12 @@ class Robot(DynSys):
         nq2 = 2*self.nq
         q = self.__vars['q']
         dq = self.__vars['dq']
-        tau_input = ca.SX.sym('tau_input', nq) # any additional torques which will be applied
+        args = self.__vars.get_attr('sym')
+        args['tau_input'] = ca.SX.sym('tau_input', nq) # any additional torques which will be applied
+        args['M_inv'] = ca.SX.sym('M_inv', nq, nq)
 
-        B = ca.diag([visc_fric]*nq) # joint damping matrix for numerical stability
-        # Inverse of mass matrix, with adjustments for numerical staiblity
-        M = ca.SX.sym('M', nq, nq)
-        Mtilde = M+ca.diag(0.5*ca.DM.ones(self.nq))     # Adding motor inertia to mass matrix
-        Mtilde_inv = ca.inv(M+step_size*B)   # Semi-implicit inverse of mass matrix
-        # Have done benchmarking on using ca.solve(M, I, 'ldl') and cpin.computeMinverse
-        # ca.solve: 12usec, ca.inv: 15usec, cpin: 22 usec. 
-
+        inp_keys = list(args.keys())
+        
         # Gravitational torques
         tau_g = cpin.computeGeneralizedGravity(self.__cmodel, self.__cdata, q)
 
@@ -174,20 +155,19 @@ class Robot(DynSys):
         #tau_err = -self.vars['tau_g'] # gravity not compensated (UR)
         tau_err = ca.DM.zeros(self.nq) # gravity compensated by inner controller (Franka)
 
-        F_ext = self.get_F_ext(q)
-        tau_ext = self.jac(q).T@self.get_F_ext(q)
+        F_ext = self.get_F(q)
+        tau_ext = self.jac(q).T@self.get_F(q)
 
-        arg = {k:v for k,v in self.__vars.items() if not in ['q', 'dq']}
-        
         # Joint acceleration, then integrate
-        ddq = Mtilde_inv@(-B@dq + tau_err + tau_ext + tau_input)
-        arg['dq_next'] = dq + step_size*ddq
-        arg['q_next'] = q + step_size*dq_next
-        # TODO: Check about rewriting to dict
-        disc_dyn_core = ca.Function('disc_dyn', arg
-                                    ['xi', 'tau_input', 'mass matrix'],
-                                    ['xi_next'], self.__jit_options).expand()
-        return disc_dyn_core
+        ddq = args['M_inv']@(-self.visc_fric@dq + tau_err + tau_ext + args['tau_input'])
+        args['dq_next'] = dq + step_size*ddq
+        args['q_next'] = q + step_size*args['dq_next']
+
+        self.disc_dyn_core = ca.Function('disc_dyn',
+                                         args,
+                                         inp_keys,
+                                         ['q_next', 'dq_next'], self.__jit_options).expand()
+        
 
     def build_lin_dyn(self, Mtilde_inv, B):
         tau_ext = self.__vars['tau_ext']
@@ -215,6 +195,27 @@ class Robot(DynSys):
         self.__vars['y'] = ca.vertcat(self.__vars['q'], self.__vars['tau_ext'])
         self.obs = ca.Function('obs', [self.___vars['xi']], [y], ['xi'], ['y'])
 
+    def get_statedict_from_vec(self, xi):
+        if type(xi) == ca.DM: xi = xi.full()
+        d = self.__vars.dictize(xi)
+        return self.get_statedict(d)
+    
+    def get_statedict(self, d):
+        """ Produce all values which are derived from state.
+            IN: complete state in dictionary d (q, dq)
+        """
+        d['p'], d['R'] = self.fwd_kin(d['q'])
+        for sys in self.__subsys:
+            d.update(sys.get_statedict(d))
+        return d
+
+    def get_inv_mass(self, q, step_size):
+        M = cpin.crba(self.__cmodel, self.__cdata, q)
+        M += 0.5*ca.DM.eye(self.nq)
+        inv_mass = ca.inv(M+step_size*self.visc_fric)   # Semi-implicit inverse of mass matrix
+        self.inv_mass_fn = ca.Function('inv_mass', [q], [inv_mass]).expand()
+        return inv_mass
+        
     # Returns the force on the TCP expressed in world coordinates
     def get_F(self, q):
         F_ext = 0

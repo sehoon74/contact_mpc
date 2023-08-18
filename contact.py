@@ -2,7 +2,7 @@ import casadi as ca
 import numpy as np
 
 from robot import DynSys
-from decision_vars import DecisionVarSet
+from decision_vars import DecisionVarSet, NamedDict
 """
 Single point contact stiffness model with parameters for
 contact location in TCP, rest position, and stiffness.
@@ -22,19 +22,15 @@ class Contact(DynSys):
     def __init__(self, name:str, pars:dict, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.name = name
-        self.__pars = {self.ns(k):ca.DM(v) for k,v in pars.items()}        
-        self.build_vars(sym_vars, attrs)
-        self.build_contact()
-
-    def ns(self, s):
-        return self.name+'/'+s     
+        self.__pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})        
+        self.build_vars(sym_vars, name, attrs)
+        self.build_contact()   
     
-    def build_vars(self, sym_vars, attrs):
-        ns_attrs = {name:{self.ns(k):v for k,v in attr.items()} for name, attr in attrs.items()}
-        self.__vars = DecisionVarSet(attrs = list(ns_attrs.keys()))
+    def build_vars(self, sym_vars, name, attrs):
+        self.__vars = DecisionVarSet(attr_names = list(attrs.keys()), name = name)
         if sym_vars:
-            inits = {self.ns(k): self.__pars[self.ns(k)] for k in sym_vars}
-            self.__vars.add_vars(inits = inits, **ns_attrs)
+            inits = {k: self.__pars[k] for k in sym_vars}
+            self.__vars.add_vars(inits = inits, **attrs)
             self.__pars.update(self.__vars)
 
     def get_dec_vars(self):
@@ -46,7 +42,7 @@ class Contact(DynSys):
     def get_statedict(self, num_dict):
         fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self.__vars.keys())}
         res = self.statedict_fn(**fn_input)
-        return {self.ns(k):v for k, v in res.items()}
+        return {k:v for k, v in res.items()}
 
     """
     Build the contact forces and torques
@@ -54,19 +50,21 @@ class Contact(DynSys):
     def build_contact(self):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)
-        x = p + R@self.__pars[self.ns('pos')]
-        disp = x - self.__pars[self.ns('pos')]
-        n = self.__pars[self.ns('stiff')]/ca.norm_2(self.__pars[self.ns('stiff')])
-        F = ca.times(self.__pars[self.ns('stiff')],(self.__pars[self.ns('rest')]-x)) # Forces in world coord
+        x = p + R@self.__pars['pos']
+        disp = x - self.__pars['pos']
+        n = self.__pars['stiff']/ca.norm_2(self.__pars['stiff'])
+        F = ca.times(self.__pars['stiff'],(self.__pars['rest']-x)) # Forces in world coord
 
         self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self.__vars),
                                 ['p', 'R', *self.__vars.keys()],
                                 ['F'])
-        
-        fn_dict = dict(p=p, R=R, x=x, disp=disp, n=n, F=F, **self.__vars)
+
+        fn_dict = dict(p=p, R=R, **self.__vars)
+        fn_output = NamedDict(self.name, dict(x=x, disp=disp, n=n, F=F))
+        fn_dict.update(fn_output)
         self.statedict_fn = ca.Function('statedict_fn', fn_dict,
                                         ['p', 'R', *self.__vars.keys()],
-                                        ['x', 'disp', 'n', 'F'])
+                                        fn_output.keys())
 
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):
@@ -74,4 +72,4 @@ class Contact(DynSys):
         return self.__F_fn(**filtered_args)['F']
 
 
-class ImpedanceController(DynSys)
+    

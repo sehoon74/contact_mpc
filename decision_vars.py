@@ -32,7 +32,7 @@ class DecisionVarSet(dict):
     def __init__(self,
                  attr_names,
                  name = '',
-                 attr_defaults = dict(lb = -np.inf, ub = np.inf, cov = 0, noise = 0,),
+                 attr_defaults = dict(lb = -np.inf, ub = np.inf, cov_init = 0, meas_noise = 0, cov_noise = 0),
                  sym = ca.SX.sym):
         super().__init__()
         assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                

@@ -11,6 +11,17 @@ Important variables:
   __pars: dict w/ numerical and symbolic parameters for building the expressions
   __vars: DecisionVars for symbolic parameters and associated attributes
 """
+
+    def add_imp_ctrl(self):
+        imp_stiff = ca.SX.sym('imp_stiff', N_p)
+        imp_damp = 3*ca.sqrt(imp_stiff)
+        imp_rest = ca.SX.sym('imp_rest', N_p)
+        
+        x, dx = self.get_tcp_motion(self.__vars['q'], self.__vars['dq'])
+        F_imp = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest - x0)
+        tau_imp = self.jac(self.__vars['q']).T@F_imp
+        
+
 class ImpedanceController(DynSys):
     """
     IN: name, a unique identifier which prefixes all vars/pars to ensure they're unique when passed up

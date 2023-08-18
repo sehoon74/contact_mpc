@@ -13,7 +13,7 @@ def yaml_load(path):
 def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
     robot_params = yaml_load(robot_path)
     attrs = yaml_load(attr_path)
-    attrs_state = {n:attrs[n] for n in ["proc_noise", "cov_init"]}
+    attrs_state = {n:attrs[n] for n in ["proc_noise", "cov_init", "meas_noise"]}
     contact_params = yaml_load(contact_path) if contact_path else {}
     contact_models = {}
     for model in contact_params.get('models'):

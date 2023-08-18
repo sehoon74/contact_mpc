@@ -1,10 +1,11 @@
 modes:
+  free: []
   plane: [contact_1]
   hinge: [contact_1, contact_2]
 models:
   contact_1:
     pos: [0.013, 0.018, 0.0]
-    stiff: [0, 0, 43465.1]
+    stiff: [0, 0, 4e2]
     rest: [0.415, -0.365, 0.2169]
   contact_2:    
     pos: [0.013, 0.018, 0.0]

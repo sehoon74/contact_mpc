@@ -43,13 +43,13 @@ class ImpedanceController(DynSys):
         F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest - p)
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self.__vars),
                                   ['p', 'R', 'dx', *self.__vars.keys()], ['F'])
-
-    def get_statedict(self, num_dict):
-        fn_input = {k:num_dict[k] for k in ['p', 'R', 'dx']+list(self.__vars.keys())}
-        return {'F_imp':self.__F_fn.call(fn_input)['F']}
-    
+        
     def get_dec_vars(self):
         return self.__vars
+    
+    def get_statedict(self, d):
+        fn_input = {k:d[k] for k in ['p', 'R', 'dx']+list(self.__vars.keys())}
+        return {'F_imp':self.__F_fn.call(fn_input)['F']}
     
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):

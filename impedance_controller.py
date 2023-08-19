@@ -23,7 +23,7 @@ class ImpedanceController(DynSys):
         self.name = 'imp_ctrl'
         self.__pars = {k:ca.DM(v) for k,v in pars.items()}      
         self.build_vars(sym_vars, attrs)
-        self.add_imp_ctrl()
+        self.build_force()
  
     def build_vars(self, sym_vars, attrs):
         self.__vars = DecisionVarSet(attr_names = list(attrs.keys()))
@@ -32,7 +32,7 @@ class ImpedanceController(DynSys):
             self.__vars.add_vars(inits = inits, **attrs)
             self.__pars.update(self.__vars)
 
-    def add_imp_ctrl(self):
+    def build_force(self):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)
         imp_stiff = self.__pars['imp_stiff']
@@ -47,7 +47,7 @@ class ImpedanceController(DynSys):
     def get_dec_vars(self):
         return self.__vars
     
-    def get_statedict(self, d):
+    def get_ext_state(self, d):
         fn_input = {k:d[k] for k in ['p', 'R', 'dx']+list(self.__vars.keys())}
         return {'F_imp':self.__F_fn.call(fn_input)['F']}
     

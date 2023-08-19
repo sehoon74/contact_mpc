@@ -32,7 +32,7 @@ class DecisionVarSet(dict):
     def __init__(self,
                  attr_names,
                  name = '',
-                 attr_defaults = dict(lb = -np.inf, ub = np.inf, cov_init = 0, meas_noise = 0, cov_noise = 0),
+                 attr_defaults = dict(lb = -np.inf, ub = np.inf, cov_init = 0, meas_noise = 0, proc_noise = 0),
                  sym = ca.SX.sym):
         super().__init__()
         assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                
@@ -55,14 +55,14 @@ class DecisionVarSet(dict):
             # Add the additional attributes for each variable
             for attr in self.__attrs:
                 assert attr in self.__defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
-                vals = kwargs[attr]
-                self.__vars[attr][name] = np.full(init.shape, vals.get(name, self.__defaults.get(attr)))
+                val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.__defaults[attr]
+                self.__vars[attr][name] = np.full(init.shape, val)
 
         for k in self.__vars['sym']:
             super().__setitem__(k, self.__vars['sym'].get(k))
                  
     def __setitem__(self, key, value):
-        raise NotImplementedError
+        super().__setitem__(key, value)
 
     def __delitem__(self, key):
         raise NotImplementedError

@@ -37,11 +37,11 @@ class Contact(DynSys):
         return self.__vars
     
     """
-    Return the statedict variables evaluated at the numerical values 
+    Return the derived state variables, evaluated at the numerical values 
     """
-    def get_statedict(self, num_dict):
+    def get_ext_state(self, num_dict):
         fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self.__vars.keys())}
-        res = self.statedict_fn(**fn_input)
+        res = self.extended_state_fn(**fn_input)
         return {k:v for k, v in res.items()}
 
     """
@@ -62,9 +62,9 @@ class Contact(DynSys):
         fn_dict = dict(p=p, R=R, **self.__vars)
         fn_output = NamedDict(self.name, dict(x=x, disp=disp, n=n, F=F))
         fn_dict.update(fn_output)
-        self.statedict_fn = ca.Function('statedict_fn', fn_dict,
-                                        ['p', 'R', *self.__vars.keys()],
-                                        fn_output.keys())
+        self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
+                                             ['p', 'R', *self.__vars.keys()],
+                                             fn_output.keys())
 
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):

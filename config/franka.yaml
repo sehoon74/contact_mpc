@@ -1,4 +1,5 @@
 urdf_path: config/franka.urdf
+ee_frame_name: fr3_link8
 joint_names:
   - panda_joint1
   - panda_joint2
@@ -8,4 +9,4 @@ joint_names:
   - panda_joint6
   - panda_joint7
 fric_model:
-  visc: 40
+  visc: 30

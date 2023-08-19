@@ -1,6 +1,8 @@
+
+import ruamel.yaml as yaml
+
 from contact import Contact
 from robot import Robot
-import ruamel.yaml as yaml
 
 def yaml_load(path):
     try:
@@ -27,3 +29,11 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
                             attrs = attrs_state,
                             subsys = [contact_models[model] for model in contact_params['modes'][mode]])
     return modes
+
+def mult_shoot_rollout(sys, H, x0, **kwargs):
+        state = sys.get_state(H)
+        res = sys.step(**state, **kwargs)
+        objective = ca.sum2(res['cost'])
+        continuity_constraints = [state[:, 0] - x0]
+        continuity_constraints += [ca.reshape(res['x_next'][:, :-1] - state[:, 1:], -1, 1)]
+        return state, objective, continuity_constraints

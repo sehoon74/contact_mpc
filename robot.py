@@ -104,12 +104,14 @@ class Robot(DynSys):
         
         self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)
 
+        cost = 0 #TODO
+        
         # Joint acceleration, then integrate
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self._input['tau_input'])
         dq_next = dq + step_size*ddq
         q_next = q + step_size*dq_next
-        self.step = ca.Function('step', inp_args.values(), [q_next, dq_next],
-                                        inp_args.keys(), ['q', 'dq']).expand()
+        self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],
+                                        inp_args.keys(), ['q', 'dq', 'cost']).expand()
 
         self._xi = self._state.vectorize()
         inp_args = self._input.get_sym()
@@ -117,9 +119,9 @@ class Robot(DynSys):
 
         self.step_vec = ca.Function('step_vec',
                                     [self._xi, *inp_args.values()],
-                                    [ca.vertcat(q_next, dq_next, self._xi[2*self.nq:])],
+                                    [ca.vertcat(q_next, dq_next, self._xi[2*self.nq:]), cost],
                                     ['xi', *inp_args.keys()],
-                                    ['xi'])
+                                    ['xi', 'cost'])
         
     def build_linearized(self):
         inp_args = self._input.get_sym()
@@ -179,7 +181,7 @@ class Robot(DynSys):
         return traj
     
     def get_ext_state(self, d):
-        """ Produce all values which are derived from state.
+        """ Produce all values which are dered from state.
             IN: complete state as dict
         """
         d = {k:v for k, v in d.items()}

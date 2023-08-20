@@ -36,3 +36,13 @@ def mult_shoot_rollout(sys, H, x0, **step_inputs):
     continuity_constraints = [state['xi'][:, 0] - x0]
     continuity_constraints += [ca.reshape(res['xi'][:, :-1] - state['xi'][:, 1:], -1, 1)]
     return state, res['xi'], continuity_constraints
+
+def singleshoot_rollout(sys, H, x0, inp_traj, **step_inputs):
+    step_inputs['xi'] = x0
+    cost = 0
+    for h in range(H):
+        step_inputs['imp_rest'] = inp_traj[:,h]
+        res = sys.step_vec(**step_inputs, **res)
+        cost += res.pop['cost']
+        step_inputs.update(res)
+    return cost

@@ -4,23 +4,22 @@ from decision_vars import *
 from helper_fns import mult_shoot_rollout as rollout
 
 class MPC:
-    def __init__(self, robots, mpc_params, ipopt_params = {}, icem_params = {}):
+    def __init__(self, robots, mpc_params, nlpopts = {}, icem_params = {}):
         self.robots = robots
 
-        self.nlpopts = ipopt_params
+        self.nlpopts = nlpopts
         self.icem_params = icem_params
 
         for r in robots.values():
             r.build_step(mpc_params['dt'])
             
         self.H  = mpc_params['H']   # number of mpc steps
-                
+    
     def solve(self, params):
         r = self.robots['free']
         params['M_inv'] = r.inv_mass_fn(params['init_state'][:r.nq])
 
-        if not hasattr(self, "solver"):
-            self.build_solver(params)
+        if not hasattr(self, "solver"): self.build_solver(params)
             
         self.__args['p'] = self.__pars.vectorize(d = params)
 
@@ -84,3 +83,16 @@ class MPC:
         self.g += [ca.reshape(F_ext[2], 1, 1)]
         self.lbg += [-30] * 1
         self.ubg += [np.inf] * 1
+    
+    def icem_static(self, rob, H, step_inputs, icem_params):
+        # (mu, std, noise, x0) -> (mu, std, best_ctrl, best_inp)
+        num_samp = icem_params['num_samples']
+        mu = sym('mu', H, rob.nu)
+        std = sym('std', H, rob.nu)
+        noise = sym('noise', num_samp, H, rob.nu)
+
+        x0 = sym('x0', num_samp, rob.nx)
+        
+        for i in range(num_samp):
+            inp = mu + ca.times(std, noise[i, :, :])
+            cost = singleshoot_rollout(rob, H, x0, inp, step_inputs)

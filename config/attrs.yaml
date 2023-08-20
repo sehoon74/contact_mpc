@@ -15,7 +15,7 @@ meas_noise:
   tau_ext: 1e1
 lb:
   imp_stiff: 1e-4
-  imp_rest: -0.15
+  imp_rest: -0.5
 ub:
   imp_stiff: 400
-  imp_rest: 0.15
+  imp_rest: 0.5

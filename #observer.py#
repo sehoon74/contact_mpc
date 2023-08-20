@@ -4,7 +4,7 @@ from scipy.stats import multivariate_normal
 
 sym = ca.SX.sym
 # ~3x speedup from JIT
-jit_opts = {}#{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+jit_opts = {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
 
 def build_step_fn(robot):
     # Build a static KF update w arguments of mu, sigma, tau and measured q
@@ -31,6 +31,7 @@ def build_step_fn(robot):
     
     fn_dict = {'mu':mu, 'cov':cov, 'q_meas':q_meas, 'tau_meas':tau_meas, 'M_inv':M_inv,
                'mu_next':mu_next_corr, 'cov_next':cov_next_corr, 'likelihood': log_likelihood,}
+
     return ca.Function('ekf_step', fn_dict,
                        ['mu', 'cov', 'q_meas', 'tau_meas', 'M_inv'], # inputs to casadi function
                        ['mu_next', 'cov_next', 'likelihood'], jit_opts)

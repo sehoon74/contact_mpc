@@ -9,8 +9,8 @@ contact location in TCP, rest position, and stiffness.
 
 This class is _stateless_, just building expressions.
 Important variables:
-  __pars: dict w/ numerical and symbolic parameters for building the expressions
-  __vars: DecisionVars for symbolic parameters and associated attributes
+  _pars: dict w/ numerical and symbolic parameters for building the expressions
+  _state: DecisionVars for symbolic parameters and associated attributes
 """
 class Contact(DynSys):
     """
@@ -22,25 +22,22 @@ class Contact(DynSys):
     def __init__(self, name:str, pars:dict, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.name = name
-        self.__pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})        
+        self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})        
         self.build_vars(sym_vars, name, attrs)
         self.build_contact()   
     
     def build_vars(self, sym_vars, name, attrs):
-        self.__vars = DecisionVarSet(attr_names = list(attrs.keys()), name = name)
+        self._state = DecisionVarSet(attr_names = list(attrs.keys()), name = name)
         if sym_vars:
-            inits = {k: self.__pars[k] for k in sym_vars}
-            self.__vars.add_vars(inits = inits, **attrs)
-            self.__pars.update(self.__vars)
+            init = {k: self._pars[k] for k in sym_vars}
+            self._state.add_vars(init = init, **attrs)
+            self._pars.update(self._state)
 
-    def get_dec_vars(self):
-        return self.__vars
-    
     """
     Return the derived state variables, evaluated at the numerical values 
     """
     def get_ext_state(self, num_dict):
-        fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self.__vars.keys())}
+        fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self._state.keys())}
         res = self.extended_state_fn(**fn_input)
         return {k:v for k, v in res.items()}
 
@@ -50,24 +47,24 @@ class Contact(DynSys):
     def build_contact(self):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)
-        x = p + R@self.__pars['pos']
-        disp = x - self.__pars['rest']
-        n = self.__pars['stiff']/ca.norm_2(self.__pars['stiff'])
-        F = ca.times(self.__pars['stiff'],(self.__pars['rest']-x)) # Forces in world coord
+        x = p + R@self._pars['pos']
+        disp = x - self._pars['rest']
+        n = self._pars['stiff']/ca.norm_2(self._pars['stiff'])
+        F = ca.times(self._pars['stiff'],(self._pars['rest']-x)) # Forces in world coord
 
-        self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self.__vars),
-                                ['p', 'R', *self.__vars.keys()],
+        self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self._state),
+                                ['p', 'R', *self._state.keys()],
                                 ['F'])
 
-        fn_dict = dict(p=p, R=R, **self.__vars)
+        fn_dict = dict(p=p, R=R, **self._state)
         fn_output = NamedDict(self.name, dict(x=x, disp=disp, n=n, F=F))
         fn_dict.update(fn_output)
         self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
-                                             ['p', 'R', *self.__vars.keys()],
+                                             ['p', 'R', *self._state.keys()],
                                              fn_output.keys())
 
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):
-        filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self.__vars.keys())}
+        filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self._state.keys())}
         return self.__F_fn(**filtered_args)['F']
     

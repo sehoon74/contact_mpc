@@ -37,28 +37,27 @@ class DecisionVarSet(dict):
         super().__init__()
         assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                
         self.name = name
-        self.__attrs = attr_names
+        self.attr_names = attr_names
         self.__vars = {k:NamedDict(name) for k in ['sym', 'init']+attr_names}
         self.__defaults = attr_defaults
         self.__sym = sym
 
-    def add_vars(self, inits = {}, **kwargs):
-        assert inits or 'inits' in kwargs, f"Need inits for your variables! Have attrs {list(kwargs.keys())}"
-        if not inits:
-            inits = kwargs.pop('inits')
-            
-        for name, init in inits.items():
-            init = np.array(init)
-            self.__vars['init'][name] = init
-            self.__vars['sym'][name] = self.__sym(name, *init.shape)
+    def add_vars(self, init = {}, **kwargs):
+        assert init or ('init' in kwargs), f"Need inits for your variables! Have attrs {list(kwargs.keys())}"
+        if not init:
+            init = kwargs.pop('init')
+        for name, ini in init.items():
+            ini = np.array(ini)
+            self.__vars['init'][name] = ini
+            self.__vars['sym'][name] = self.__sym(name, *ini.shape)
 
             # Add the additional attributes for each variable
-            for attr in self.__attrs:
+            for attr in self.attr_names:
                 assert attr in self.__defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
                 val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.__defaults[attr]
-                self.__vars[attr][name] = np.full(init.shape, val)
+                self.__vars[attr][name] = np.full(ini.shape, val)
 
-        for k in self.__vars['sym']:
+        for k in self.__vars['sym'].keys():
             super().__setitem__(k, self.__vars['sym'].get(k))
                  
     def __setitem__(self, key, value):
@@ -89,21 +88,25 @@ class DecisionVarSet(dict):
             s += f"  {key}: {self[key]}, shape: {self[key].shape}\n"
         return s
     
-    def vectorize(self, attr = 'sym'):
-        return ca.vertcat(*[el.reshape((-1,1)) for el in self.__vars[attr].values()])
+    def vectorize(self, attr = 'sym', d = {}):
+        if not d:
+            d = self.__vars[attr]
+        for k in d.keys():
+            if type(d[k]) == float: d[k] = ca.DM(d[k])
+        return ca.vertcat(*[d[k].reshape((-1,1)) for k in self.__vars['init'].keys()])
 
     def dictize(self, vec):
         """
         vec is the numerical optimization results, fills the dict x with reshaping as needed
         """
-        assert len(vec) == len(self), "Length of optimization doesn't match initial x0"
+        #assert len(vec) == len(self), "Length of optimization doesn't match initial x0"
         read_pos = 0
         d = {}
         for key, init in self.__vars['init'].items():
             v_size  = init.size
             v_shape = init.shape
             if len(v_shape) == 1: v_shape = (*v_shape,1)
-            d[key] = np.squeeze(np.reshape(vec[read_pos:read_pos+v_size], v_shape))
+            d[key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
             read_pos += v_size
         return d
     
@@ -111,9 +114,6 @@ class DecisionVarSet(dict):
         return tuple([self.vectorize(arg) for arg in argv])
 
     def get_deviation(self, key):
-        """
-        Returns difference between initial value and symbolic (or numeric) value
-        """
         return self.__vars['sym'][key]-self.__vars['init'][key]
 
     def get_attr_list(self):
@@ -122,20 +122,26 @@ class DecisionVarSet(dict):
     def get_attr(self, attr):
         return {k:self.__vars[attr].get(k) for k in self.__vars[attr].keys()}
 
-    def get_mpc_vars(self, H, vars_to_get):
-        assert all(vars_to_get in self.__vars['sym']), f'vars_to_get {vars_to_get} should be in the dec vars'
-        mpc_attrs = ['init', 'lb', 'ub']
-        assert all(mpc_attrs in self.__vars), f'need attrs of sym, init, lb and ub, have {self.__vars.keys()}'
-        attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in vars_to_get} for attr in self.__vars.keys()}
-        dec_vars = DecisionVarSet(attrs, attr_defaults=self.__defaults)
-        dec_vars.add_vars(attrs)
+    def extend_vars(self, H):
+        attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys()} for attr in self.attr_names+['init']}
+        dec_vars = DecisionVarSet(attr_names=self.attr_names,
+                                  name=self.name,
+                                  attr_defaults=self.__defaults)
+        dec_vars.add_vars(**attrs)
         return dec_vars
 
+    def extend_vec(self, H):
+        attrs = {attr:{'xi':ca.repmat(self.vectorize(attr),1,H)} for attr in self.attr_names+['init']}
+        dec_vars = DecisionVarSet(attr_names=self.attr_names,
+                                  name=self.name,
+                                  attr_defaults=self.__defaults)
+        dec_vars.add_vars(**attrs)
+        return dec_vars
+                 
 class ParamSet(DecisionVarSet):
-    def __init__(self, inits, sym = ca.SX.sym):
-        super().__init__(attr=[], sym = sym)
-        super().add_vars(inits = inits)
-
+    def __init__(self, init, sym = ca.SX.sym):
+        super().__init__(attr_names = [], sym = sym)
+        super().add_vars(init = init)
 
 """
 Class which prefixes the name on the keys for gets and sets via []

@@ -4,21 +4,25 @@ from decision_vars import *
 from helper_fns import mult_shoot_rollout
 
 class MPC:
-    def __init__(self, robots, mpc_params, ipopt_params, icem_params = {}):
+    def __init__(self, robots, mpc_params, ipopt_params = {}, icem_params = {}):
         self.robots = robots
-        self.mpc_params = mpc_params  # mpc parameters
-        self.icem_params = icem_params
+
         self.nlpopts = ipopt_params
-        
-        self.H  = mpc_params['H']  # number of mpc steps
-        self.dt = mpc_params['dt']  # sampling time
-        self.dim_samples = (mpc_params['N_p'], self.H)  # (nq,H)
-        
+        self.icem_params = icem_params
+
+        for r in robots.values():
+            r.build_step(mpc_params['dt'])
+            
+        self.H  = mpc_params['H']   # number of mpc steps
+                
     def solve(self, params):
+        r = self.robots['free']
+        params['M_inv'] = r.inv_mass_fn(params['init_state'][:r.nq])
+
         if not hasattr(self, "solver"):
             self.build_solver(params)
-
-        self.__args['p'] = self.pars.update(params)  # update parameters for the solver
+            
+        self.__args['p'] = self.__pars.vectorize(d = params)
 
         if self.icem_params:   # warm start nlp with iCEM
             best_traj, best_input = self.icem_warmstart(params_icem)
@@ -28,42 +32,51 @@ class MPC:
             self.__vars.set_x0('imp_rest', best_input)
             self.__args['x0'] = self.vars.get_x0()
 
-        sol = self.solver(**self.args)
+        sol = self.solver(**self.__args)
 
         if not self.icem_params: self.__args['x0'] = sol['x']
         self.__args['lam_x0'] = sol['lam_x']
         self.__args['lam_g0'] = sol['lam_g']
 
-        res = self.__vars.dictize(sol['x'])
+        res = self.__vars.dictize(sol['x'].full())
         return res['imp_rest']
 
+    def traj_cost(self, robot, traj):
+        for h in range(self.H):
+            d = robot.get_ext_state_from_vec(traj[:,h])
+        return ca.sumsqr(d['p']-ca.DM([0,0,0]))
+    
     def build_solver(self, params0):
-        nq = self.nq
         self.__pars = ParamSet(params0)
-
+        
         J = 0
         g = []
-        self.__vars = self.robots['free'].get_inputs(self.H)
-        imp_stiff = self.pars['imp_stiff']
-        for name, rob in self.robots:
-            traj, obj, cont_const = mult_shoot_rollout(rob,
-                                                       self.H,
-                                                       self.__params['init_state'],
-                                                       **self.__vars)
+        self.__vars = DecisionVarSet(attr_names = ['lb', 'ub'])
+        self.__vars += self.robots['free'].get_input(self.H)
+        step_inputs = self.__vars.get_attr('sym')
+
+        step_inputs['imp_stiff'] = self.__pars['imp_stiff']
+        step_inputs['M_inv'] = self.__pars['M_inv']
+        for name, rob in self.robots.items():
+            traj, cont_const = mult_shoot_rollout(rob,
+                                                  self.H,
+                                                  self.__pars['init_state'],
+                                                  **step_inputs)
+    
             self.__vars += traj
-            J += self.pars['belief_'+name]*obj
+            J += self.__pars['belief_'+name]*self.traj_cost(rob, traj['xi'])
             g += cont_const
 
         self.g = ca.vertcat(*g)
-        self.lbg = ca.DM.zeros(g.shape[0])
-        self.ubg = ca.DM.zeros(g.shape[0])
+        self.lbg = ca.DM.zeros(self.g.shape[0])
+        self.ubg = ca.DM.zeros(self.g.shape[0])
         
-        self.add_max_force_constraint(self.robots[mode].force_sym(self.vars['q_' + mode][:self.nq, 0]), self.vars['q_' + mode][:self.nq, 0])
+        #self.add_max_force_constraint(self.robots[mode].force_sym(self.vars['q_' + mode][:self.nq, 0]), self.vars['q_' + mode][:self.nq, 0])
 
-        x, lbx, ubx, x0 = self.__vars.get_vectors(['sym', 'lb', 'ub', 'init'])
-        prob = dict(f=J, x=x, g=ca.vertcat(*self.g), p=self.pars.vectorize())
+        x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
+        prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
-        self.solver = ca.nlpsol('solver', 'ipopt', prob, self.options)
+        self.solver = ca.nlpsol('solver', 'ipopt', prob, self.nlpopts)
 
     def add_max_force_constraint(self, tau_ext, q):
         H = self.H

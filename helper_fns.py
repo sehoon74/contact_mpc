@@ -1,4 +1,4 @@
-
+import casadi as ca
 import ruamel.yaml as yaml
 
 from contact import Contact
@@ -19,7 +19,7 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
     contact_params = yaml_load(contact_path) if contact_path else {}
     contact_models = {}
     for model in contact_params.get('models'):
-        contact_models[model] = Contact(name = model,
+        contact_models[model] = Contact(name = model+'/',
                                         pars = contact_params['models'][model],
                                         attrs = attrs_state,
                                         sym_vars = sym_vars)
@@ -30,10 +30,10 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
                             subsys = [contact_models[model] for model in contact_params['modes'][mode]])
     return modes
 
-def mult_shoot_rollout(sys, H, x0, **kwargs):
-        state = sys.get_state(H)
-        res = sys.step(**state, **kwargs)
-        objective = ca.sum2(res['cost'])
-        continuity_constraints = [state[:, 0] - x0]
-        continuity_constraints += [ca.reshape(res['x_next'][:, :-1] - state[:, 1:], -1, 1)]
-        return state, objective, continuity_constraints
+def mult_shoot_rollout(sys, H, x0, **step_inputs):
+    state = sys.get_statevec(H)
+    step_inputs.update(state)
+    res = sys.step_vec(**step_inputs)
+    continuity_constraints = [state['xi'][:, 0] - x0]
+    continuity_constraints += [ca.reshape(res['xi'][:, :-1] - state['xi'][:, 1:], -1, 1)]
+    return state, continuity_constraints

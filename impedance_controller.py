@@ -40,7 +40,7 @@ class ImpedanceController(DynSys):
         imp_rest = self._pars['imp_rest']
         dx = ca.SX.sym('dx',3)
         
-        F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest - p)
+        F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest)
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self._state),
                                   ['p', 'R', 'dx', *self._state.keys()], ['F'])
             
@@ -52,6 +52,3 @@ class ImpedanceController(DynSys):
     def get_force(self, args):
         filtered_args = {k:v for k,v in args.items() if k in ['p', 'R', 'dx']+list(self._state.keys())}
         return self.__F_fn(**filtered_args)['F']
-
-
-    

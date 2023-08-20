@@ -26,21 +26,20 @@ class DecisionVarSet(dict):
     IN: attr_names, a list of strings for the attributes
     IN: name, a prefix for variables to prename
     IN: attr_defaults, a dictionary of the default values to use for an attribute
-    IN: sym, the type of symbolic variable to create
-    IN: **kwargs, additional attributes, where the value is a dict with keys for all keys in inits
     """
-    def __init__(self,
-                 attr_names,
-                 name = '',
-                 attr_defaults = dict(lb = -np.inf, ub = np.inf, cov_init = 0, meas_noise = 0, proc_noise = 0),
-                 sym = ca.SX.sym):
+    def __init__(self, attr_names, name = '', sym = ca.SX.sym,
+                 attr_defaults = dict(lb = -np.inf,
+                                      ub =  np.inf,
+                                      cov_init = 0,
+                                      meas_noise = 0,
+                                      proc_noise = 0)):
         super().__init__()
         assert version_info >= (3, 6), "Python 3.6 required to guarantee dicts are ordered"                
         self.name = name
         self.attr_names = attr_names
+        self.attr_defaults = attr_defaults
+        self.sym = sym
         self.__vars = {k:NamedDict(name) for k in ['sym', 'init']+attr_names}
-        self.__defaults = attr_defaults
-        self.__sym = sym
 
     def add_vars(self, init = {}, **kwargs):
         assert init or ('init' in kwargs), f"Need inits for your variables! Have attrs {list(kwargs.keys())}"
@@ -49,17 +48,16 @@ class DecisionVarSet(dict):
         for name, ini in init.items():
             ini = np.array(ini)
             self.__vars['init'][name] = ini
-            self.__vars['sym'][name] = self.__sym(name, *ini.shape)
+            self.__vars['sym'][name] = self.sym(name, *ini.shape)
 
             # Add the additional attributes for each variable
             for attr in self.attr_names:
-                assert attr in self.__defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
-                val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.__defaults[attr]
+                assert attr in self.attr_defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
+                val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.attr_defaults[attr]
                 self.__vars[attr][name] = np.full(ini.shape, val)
 
-        for k in self.__vars['sym'].keys():
-            super().__setitem__(k, self.__vars['sym'].get(k))
-                 
+        for k, v in self.__vars['sym'].items(): self[k] = v
+    
     def __setitem__(self, key, value):
         super().__setitem__(key, value)
 
@@ -70,8 +68,8 @@ class DecisionVarSet(dict):
     Adds other variables to self, the attributes are projected down to those in self
     """
     def __add__(self, other):
-        assert set(self.get_attr_list()) <= set(other.get_attr_list()), "LHS set has attributes that RHS doesn't"
-        for attr in self.get_attr_list():
+        assert set(self.attr_names) <= set(other.attr_names), "LHS set has attributes that RHS doesn't"
+        for attr in list(self.attr_names)+['init', 'sym']:
             self.__vars[attr].update(other.get_attr(attr))
         for k in self.__vars['sym']:
             super().__setitem__(k, self.__vars['sym'].get(k))
@@ -82,7 +80,7 @@ class DecisionVarSet(dict):
 
     def __str__(self):
         s = "***** Decision Vars *****\n"
-        s += f"Attributes: {self.get_attr_list()}\n"
+        s += f"Attributes: {self.attr_names}\n"
         s += "Vars: \n"
         for key in self.__vars['sym']:
             s += f"  {key}: {self[key]}, shape: {self[key].shape}\n"
@@ -92,8 +90,8 @@ class DecisionVarSet(dict):
         if not d:
             d = self.__vars[attr]
         for k in d.keys():
-            if type(d[k]) == float: d[k] = ca.DM(d[k])
-        return ca.vertcat(*[d[k].reshape((-1,1)) for k in self.__vars['init'].keys()])
+            if type(d.get(k)) == float: d[k] = ca.DM(d[k])
+        return ca.vertcat(*[d.get(k).reshape((-1,1)) for k in self.__vars['init'].keys()])
 
     def dictize(self, vec):
         """
@@ -105,6 +103,7 @@ class DecisionVarSet(dict):
         for key, init in self.__vars['init'].items():
             v_size  = init.size
             v_shape = init.shape
+            if len(v_shape) == 0: v_shape = (1, 1)
             if len(v_shape) == 1: v_shape = (*v_shape,1)
             d[key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
             read_pos += v_size
@@ -113,12 +112,8 @@ class DecisionVarSet(dict):
     def get_vectors(self, *argv):
         return tuple([self.vectorize(arg) for arg in argv])
 
-    def get_deviation(self, key):
-        return self.__vars['sym'][key]-self.__vars['init'][key]
-
-    def get_attr_list(self):
-        return list(self.__vars.keys())
-
+    def get_sym(self): return self.get_attr('sym')
+    
     def get_attr(self, attr):
         return {k:self.__vars[attr].get(k) for k in self.__vars[attr].keys()}
 
@@ -126,7 +121,7 @@ class DecisionVarSet(dict):
         attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys()} for attr in self.attr_names+['init']}
         dec_vars = DecisionVarSet(attr_names=self.attr_names,
                                   name=self.name,
-                                  attr_defaults=self.__defaults)
+                                  attr_defaults=self.attr_defaults)
         dec_vars.add_vars(**attrs)
         return dec_vars
 
@@ -134,7 +129,7 @@ class DecisionVarSet(dict):
         attrs = {attr:{'xi':ca.repmat(self.vectorize(attr),1,H)} for attr in self.attr_names+['init']}
         dec_vars = DecisionVarSet(attr_names=self.attr_names,
                                   name=self.name,
-                                  attr_defaults=self.__defaults)
+                                  attr_defaults=self.attr_defaults)
         dec_vars.add_vars(**attrs)
         return dec_vars
                  

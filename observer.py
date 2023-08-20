@@ -38,7 +38,7 @@ def build_step_fn(robot):
 class EKF():
     """ This defines an EKF observer """
     def __init__(self, robot):
-        xi_init, cov_init = robot.get_init()
+        xi_init, cov_init = robot.get_ekf_init()
         self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)} 
         self.step_fn = build_step_fn(robot)
         self.robot = robot

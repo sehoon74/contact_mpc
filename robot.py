@@ -14,17 +14,11 @@ class DynSys():
         self._state = None
         self._input = None
         
-    def get_ext_state(self, xi:Vector) -> dict:
-        return NotImplementedError
-
-    def get_dec_vars(self) -> DecisionVarSet:
-        return self._state
-
     def get_input(self, H=1):
         return self._input.extend_vars(H)
 
     def get_state(self, H=1):
-        return self._state.extend_vars(H)
+        return self._state if H==1 else self._state.extend_vars(H)
 
     def get_statevec(self, H=1):
         return self._state.extend_vec(H)
@@ -66,15 +60,15 @@ class Robot(DynSys):
             self.meas_noise = ca.diag(ca.vertcat(attrs['meas_noise']['q']*ca.DM.ones(self.nq),
                                                  attrs['meas_noise']['tau_ext']*ca.DM.ones(self.nq)))
         for sys in self.__subsys:
-            self._state += sys.get_dec_vars()
+            self._state += sys.get_state()
         self.nx = self._state.vectorize().shape[0]
 
         # Params for the step fn
         init = dict(M_inv = ca.DM.zeros(self.nq, self.nq))
-        if not self.__ctrl: init['tau_input'] = ca.DM.zeros(self.nq)
         self._param = ParamSet(init = init)
 
         self._input = DecisionVarSet(['lb', 'ub'])
+        if not self.__ctrl: self._input.add_vars({'tau_input':ca.DM.zeros(self.nq)})
         
     def build_inv_mass(self, step_size):
         M = self.mass_fn(self._state['q']) + 0.5*ca.DM.eye(self.nq)
@@ -104,9 +98,9 @@ class Robot(DynSys):
         # Shorthand
         q = self._state['q']
         dq = self._state['dq']
-        inp_args = self._state.get_attr('sym')
-        inp_args.update(self._input.get_attr('sym'))
-        inp_args.update(self._param.get_attr('sym'))
+        inp_args = self._state.get_sym()
+        inp_args.update(self._param.get_sym())
+        inp_args.update(self._input.get_sym())
         
         self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)
 
@@ -118,17 +112,18 @@ class Robot(DynSys):
                                         inp_args.keys(), ['q', 'dq']).expand()
 
         self._xi = self._state.vectorize()
-        inp_args = self._input.get_attr('sym')
-        inp_args.update(self._param.get_attr('sym'))
+        inp_args = self._input.get_sym()
+        inp_args.update(self._param.get_sym())
 
         self.step_vec = ca.Function('step_vec',
                                     [self._xi, *inp_args.values()],
                                     [ca.vertcat(q_next, dq_next, self._xi[2*self.nq:])],
                                     ['xi', *inp_args.keys()],
                                     ['xi'])
-                                     
+        
     def build_linearized(self):
-        inp_args = self._input.get_attr('sym')
+        inp_args = self._input.get_sym()
+        inp_args.update(self._param.get_sym())
         inp_args['xi'] = self._xi
         res = self.step_vec.call(inp_args)
         xi_next = res['xi']
@@ -143,18 +138,18 @@ class Robot(DynSys):
         proc_noise = ca.diag(self._state.vectorize(attr='proc_noise'))
         return self._xi, proc_noise, self.meas_noise
 
-    def get_init(self):
+    def get_ekf_init(self):
         return self._state.get_vectors('init', 'cov_init')
     
     def build_ctrl(self):
         print(f'  Building controller {self.__ctrl.name}')
         q = self._state['q']
         dq = self._state['dq']
-        arg_dict = self.__ctrl.get_dec_vars().get_attr('sym')
+        arg_dict = self.__ctrl.get_state().get_sym()
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
         arg_dict['dx'] = self.tcp_motion(q, dq)[1]
 
-        self._input += self.__ctrl.get_dec_vars()
+        self._input += self.__ctrl.get_state()
         self._input['tau_input'] = self.jac(q).T@self.__ctrl.get_force(arg_dict)
     
     # Returns the force on the TCP expressed in world coordinates
@@ -170,6 +165,18 @@ class Robot(DynSys):
         if type(xi) == ca.DM: xi = xi.full()
         d = self._state.dictize(xi)
         return self.get_ext_state(d)
+
+    def get_ext_state_from_traj(self, mat):
+        if type(mat) == ca.DM: mat = mat.full()
+        assert len(mat.shape) == 2, "2d array, where columns are each trajectory point please"
+        assert mat.shape[0] == self.nx, f"Each column should have {self.nx} rows"
+        d = self.get_ext_state(self._state.dictize(mat[:,0]))
+        traj = {k:[] for k in d} 
+        for h in range(mat.shape[1]):
+            d_h = self.get_ext_state(self._state.dictize(mat[:,h]))
+            for k in traj:
+                traj[k].append(d_h[k].full())
+        return traj
     
     def get_ext_state(self, d):
         """ Produce all values which are derived from state.

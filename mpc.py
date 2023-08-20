@@ -1,7 +1,7 @@
 from robot import Robot
 import casadi as ca
 from decision_vars import *
-from helper_fns import mult_shoot_rollout
+from helper_fns import mult_shoot_rollout as rollout
 
 class MPC:
     def __init__(self, robots, mpc_params, ipopt_params = {}, icem_params = {}):
@@ -39,12 +39,14 @@ class MPC:
         self.__args['lam_g0'] = sol['lam_g']
 
         res = self.__vars.dictize(sol['x'].full())
-        return res['imp_rest']
+        return res
 
     def traj_cost(self, robot, traj):
+        J = 0
         for h in range(self.H):
             d = robot.get_ext_state_from_vec(traj[:,h])
-        return ca.sumsqr(d['p']-ca.DM([0,0,0]))
+            J += ca.sumsqr(d['p']-ca.DM([0.3,0.5,0.8])) + 0.05*ca.sumsqr(d['dx'])
+        return J
     
     def build_solver(self, params0):
         self.__pars = ParamSet(params0)
@@ -53,16 +55,12 @@ class MPC:
         g = []
         self.__vars = DecisionVarSet(attr_names = ['lb', 'ub'])
         self.__vars += self.robots['free'].get_input(self.H)
-        step_inputs = self.__vars.get_attr('sym')
-
+        step_inputs = self.__vars.get_sym()
         step_inputs['imp_stiff'] = self.__pars['imp_stiff']
         step_inputs['M_inv'] = self.__pars['M_inv']
         for name, rob in self.robots.items():
-            traj, cont_const = mult_shoot_rollout(rob,
-                                                  self.H,
-                                                  self.__pars['init_state'],
-                                                  **step_inputs)
-    
+            traj, xi_next, cont_const = rollout(rob, self.H,
+                                                self.__pars['init_state'], **step_inputs)
             self.__vars += traj
             J += self.__pars['belief_'+name]*self.traj_cost(rob, traj['xi'])
             g += cont_const
@@ -81,10 +79,8 @@ class MPC:
     def add_max_force_constraint(self, tau_ext, q):
         H = self.H
         p_inv_jac = self.pinv_jac(q)
-        #print(p_inv_jac.shape)
         F_ext = p_inv_jac @ tau_ext
 
-        #print(ca.norm_2(F_ext))
         self.g += [ca.reshape(F_ext[2], 1, 1)]
         self.lbg += [-30] * 1
         self.ubg += [np.inf] * 1

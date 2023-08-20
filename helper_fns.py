@@ -32,8 +32,7 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
 
 def mult_shoot_rollout(sys, H, x0, **step_inputs):
     state = sys.get_statevec(H)
-    step_inputs.update(state)
-    res = sys.step_vec(**step_inputs)
+    res = sys.step_vec(**step_inputs, **state.get_sym())
     continuity_constraints = [state['xi'][:, 0] - x0]
     continuity_constraints += [ca.reshape(res['xi'][:, :-1] - state['xi'][:, 1:], -1, 1)]
-    return state, continuity_constraints
+    return state, res['xi'], continuity_constraints

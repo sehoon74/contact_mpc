@@ -47,6 +47,7 @@ class ImpedanceController(DynSys):
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self._input, **self._param),
                                   ['p', 'R', 'dx', *self._input.keys(), *self._param.keys()], ['F'])
         
+        
     def get_extended_state(self, d):
         fn_input = {k:d[k] for k in ['p', 'R', 'dx']+list(self._input.keys())}
         return {'F_imp':self.__F_fn.call(fn_input)['F']}

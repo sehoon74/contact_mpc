@@ -42,7 +42,8 @@ class ImpedanceController(DynSys):
         imp_damp = 3*ca.sqrt(imp_stiff)
         imp_rest = self._imp_pars['imp_rest']
         dx = ca.SX.sym('dx',3)
-        
+
+        # Builds force assuming impedance parameters are in cartesian space, as is the case with the Franka Emika
         F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest)
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self._input, **self._param),
                                   ['p', 'R', 'dx', *self._input.keys(), *self._param.keys()], ['F'])

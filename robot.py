@@ -15,7 +15,7 @@ class DynSys():
         self._input = None
 
     def get_step_args(self):
-        step_args = self._state.get_vars() 
+        step_args = self._state.get_vars()
         if self._param: step_args.update(self._param.get_vars())
         if self._input: step_args.update(self._input.get_vars())
         return step_args
@@ -133,7 +133,7 @@ class Robot(DynSys):
         self._xi = self._state.vectorize()
         self._u = self._input.vectorize()
         inp_args = self._param.get_vars()
-        
+
         self.step_vec = ca.Function('step_vec',
                                     [self._xi, self._u, *inp_args.values()],
                                     [ca.vertcat(q_next, dq_next, self._xi[2*self.nq:]), cost],
@@ -148,10 +148,10 @@ class Robot(DynSys):
         M_inv =  self.inv_mass_fn(xi[:self.nq])
         step_ma = self.step_vec.mapaccum(H)
         xi_n, cost = step_ma(xi0, imp_rest, M_inv, imp_stiff)
-        cost_ma = ca.sum2(res['cost'])
-        self.rollout_ma = ca.Function('rollout_ma', [xi0, imp_rest, imp_stiff], [cost_ma])
-        self.rollout_ma_map = self.rollout_ma.map(num_particles)
-                    
+        cost = ca.sum2(cost)
+        self.rollout = ca.Function('rollout', [xi0, imp_rest, imp_stiff], [cost])
+        self.rollout_map = self.rollout.map(num_particles)
+
     # Returns the force on the TCP expressed in world coordinates
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
@@ -160,7 +160,7 @@ class Robot(DynSys):
         for sys in self.__subsys:
             F_ext += sys.get_force(arg_dict)
         return F_ext
-    
+
     def get_ext_state(self, st):
         """ Produce all values which are derived from state.
             IN: complete state as dict or vect
@@ -175,7 +175,7 @@ class Robot(DynSys):
         if self.__ctrl:
             st.update(self.__ctrl.get_ext_state(st))
         return st
-    
+
 class LinearizedRobot(Robot):
     def __init__(self, urdf_path, **kwargs):
         super().__init__(urdf_path, **kwargs)
@@ -199,7 +199,7 @@ class LinearizedRobot(Robot):
         C = ca.jacobian(y, self._xi)
         self.linearized = ca.Function('linearized', [self._xi, u, inp_args['M_inv'],], [A, C, xi_next, y],
                                                     ['xi', 'tau_input', 'M_inv'], ['A', 'C', 'xi_next', 'y']).expand()
-        
+
     def get_ekf_info(self):
         return self._xi, self.proc_noise, self.meas_noise
 
@@ -212,7 +212,7 @@ def load_urdf(urdf_path, ee_frame_name):
     __cdata = __cmodel.createData()
     q = ca.SX.sym('q', model.nq)
     ee_ID = __cmodel.getFrameId(ee_frame_name)
-        
+
     cpin.forwardKinematics(__cmodel, __cdata, q)
     cpin.updateFramePlacement(__cmodel, __cdata, ee_ID)
     ee = __cdata.oMf[ee_ID]

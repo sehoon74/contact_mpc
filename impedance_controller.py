@@ -18,21 +18,21 @@ class ImpedanceController(DynSys):
     (IN): input_vars, a list of strings for keys in pars which are to be made symbolic
     (IN): attrs, a nested dict of additional variable attributes {attr:{name:value}}
     """
-    def __init__(self, pars:dict, input_vars = [], attrs = {}):
-        assert set(pars.keys()) == set(['imp_stiff', 'imp_rest']), "Impedance pars are [stiff, rest]"
+    def __init__(self, input_vars = [], attrs = {}):
         self.name = 'imp_ctrl'
-        self._imp_pars = {k:ca.DM(v) for k,v in pars.items()} # used in impedance calc
         self.build_vars(input_vars, attrs)
         self.build_force()
  
     def build_vars(self, input_vars, attrs):
         self._input = DecisionVarSet(attr_names = ['lb', 'ub'])
+        self._imp_pars = {} # used in impedance calc
+        imp_init = {k:ca.DM.zeros(3) for k in ['imp_stiff', 'imp_rest']} 
         if input_vars:
-            init = {k: self._imp_pars[k] for k in input_vars}
+            init = {var: imp_init.pop(var) for var in input_vars}
             self._input.add_vars(init = init, **attrs)
             self._imp_pars.update(self._input)
-        if 'imp_stiff' not in input_vars:
-            self._param = ParamSet({'imp_stiff':ca.DM.ones(3)})
+        if imp_init: # if there's anything left...
+            self._param = ParamSet(imp_init)
             self._imp_pars.update(self._param)
 
     def build_force(self):
@@ -47,11 +47,12 @@ class ImpedanceController(DynSys):
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self._input, **self._param),
                                   ['p', 'R', 'dx', *self._input.keys(), *self._param.keys()], ['F'])
         
-    def get_extended_state(self, d):
-        fn_input = {k:d[k] for k in ['p', 'R', 'dx']+list(self._input.keys())}
-        return {'F_imp':self.__F_fn.call(fn_input)['F']}
+    def get_ext_state(self, d):
+        return {'F_imp':self.get_force(d)}
     
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):
-        filtered_args = {k:v for k,v in args.items() if k in ['p', 'R', 'dx']+list(self._input.keys())}
+        arg_names = ['p', 'R', 'dx', 'imp_stiff', 'imp_rest']
+        assert set(arg_names) <= set(args.keys()), f"Need {arg_names} in args, have {args.keys()}" 
+        filtered_args = {k:v for k,v in args.items() if k in arg_names}
         return self.__F_fn(**filtered_args)['F']

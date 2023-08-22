@@ -57,7 +57,7 @@ class EKF():
         self.x['cov'] = res['cov_next']
          
     def get_ext_state(self):
-        return self.robot.get_ext_state_from_vec(self.x['mu'])
+        return self.robot.get_ext_state(self.x['mu'])
     
 class MomentumObserver():
     ''' Mostly following https://elib.dlr.de/129060/1/root.pdf '''

@@ -70,7 +70,7 @@ class DecisionVarSet(dict):
     def __add__(self, other):
         assert set(self.attr_names) <= set(other.attr_names), "LHS set has attributes that RHS doesn't"
         for attr in list(self.attr_names)+['init', 'sym']:
-            self.__vars[attr].update(other.get_attr(attr))
+            self.__vars[attr].update(other.get_vars(attr))
         for k in self.__vars['sym']:
             super().__setitem__(k, self.__vars['sym'].get(k))
         return self
@@ -111,22 +111,12 @@ class DecisionVarSet(dict):
     
     def get_vectors(self, *argv):
         return tuple([self.vectorize(arg) for arg in argv])
-
-    def get_sym(self): return self.get_attr('sym')
     
-    def get_attr(self, attr):
+    def get_vars(self, attr = 'sym'):
         return {k:self.__vars[attr].get(k) for k in self.__vars[attr].keys()}
-
+    
     def extend_vars(self, H):
         attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys()} for attr in self.attr_names+['init']}
-        dec_vars = DecisionVarSet(attr_names=self.attr_names,
-                                  name=self.name,
-                                  attr_defaults=self.attr_defaults)
-        dec_vars.add_vars(**attrs)
-        return dec_vars
-
-    def extend_vec(self, H):
-        attrs = {attr:{'xi':ca.repmat(self.vectorize(attr),1,H)} for attr in self.attr_names+['init']}
         dec_vars = DecisionVarSet(attr_names=self.attr_names,
                                   name=self.name,
                                   attr_defaults=self.attr_defaults)

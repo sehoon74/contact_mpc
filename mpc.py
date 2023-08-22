@@ -17,7 +17,7 @@ class MPC:
     
     def solve(self, params):
         r = self.robots['free']
-        params['M_inv'] = r.inv_mass_fn(params['init_state'][:r.nq])
+        params['M_inv'] = r.inv_mass_fn(params['q'])
 
         if not hasattr(self, "solver"): self.build_solver(params)
             
@@ -37,31 +37,35 @@ class MPC:
         self.__args['lam_x0'] = sol['lam_x']
         self.__args['lam_g0'] = sol['lam_g']
 
-        res = self.__vars.dictize(sol['x'].full())
-        return res
+        
+        return self.__vars.dictize(sol['x'].full())
 
     def traj_cost(self, robot, traj):
         J = 0
         for h in range(self.H):
-            d = robot.get_ext_state_from_vec(traj[:,h])
+            d = robot.get_ext_state(traj[:,h])
             J += ca.sumsqr(d['p']-ca.DM([0.3,0.5,0.8])) + 0.05*ca.sumsqr(d['dx'])
         return J
     
     def build_solver(self, params0):
         self.__pars = ParamSet(params0)
-        
+        # TODO: adjust so we're pulling state/input/params from dyn sys
         J = 0
         g = []
         self.__vars = DecisionVarSet(attr_names = ['lb', 'ub'])
         self.__vars += self.robots['free'].get_input(self.H)
-        step_inputs = self.__vars.get_sym()
+
+        step_inputs = self.__vars.get_vars()
         step_inputs['imp_stiff'] = self.__pars['imp_stiff']
         step_inputs['M_inv'] = self.__pars['M_inv']
+        xi0 = dict(q = params0['q'], dq = params0['dq'])
         for name, rob in self.robots.items():
-            traj, xi_next, cont_const = rollout(rob, self.H,
-                                                self.__pars['init_state'], **step_inputs)
+            traj, cost, cont_const = rollout(rob,
+                                              self.H,
+                                              xi0,
+                                              **step_inputs)
             self.__vars += traj
-            J += self.__pars['belief_'+name]*self.traj_cost(rob, traj['xi'])
+            J += cost
             g += cont_const
 
         self.g = ca.vertcat(*g)

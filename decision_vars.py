@@ -108,7 +108,18 @@ class DecisionVarSet(dict):
             d[key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
             read_pos += v_size
         return d
-    
+
+    def prefix_name(self, name):
+        new_vars = {attr:{name+k:v for k,v in self.__vars[attr].items()} for attr in self.attr_names+['init', 'sym']}
+        self.__vars = new_vars
+
+    def spawn_from_attrs(self, attrs):
+        dec_vars = DecisionVarSet(attr_names=self.attr_names,
+                                  name=self.name,
+                                  attr_defaults=self.attr_defaults)
+        dec_vars.add_vars(**attrs)
+        return dec_vars
+            
     def get_vectors(self, *argv):
         return tuple([self.vectorize(arg) for arg in argv])
     
@@ -117,10 +128,12 @@ class DecisionVarSet(dict):
     
     def extend_vars(self, H):
         attrs = {attr:{k:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys()} for attr in self.attr_names+['init']}
-        dec_vars = DecisionVarSet(attr_names=self.attr_names,
-                                  name=self.name,
-                                  attr_defaults=self.attr_defaults)
-        dec_vars.add_vars(**attrs)
+        return self.spawn_from_attrs(attrs)
+    
+    def vectorize_set(self, new_vector_name):
+        attrs = {attr:{new_vector_name:self.vectorize(attr)} for attr in self.attr_names+['init']}
+        dec_vars = self.spawn_from_attrs(attrs)
+        dec_vars[new_vector_name] = self.vectorize() # Make sure we're preserving the actual symbolic vars
         return dec_vars
                  
 class ParamSet(DecisionVarSet):

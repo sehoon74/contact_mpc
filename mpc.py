@@ -11,8 +11,9 @@ class MPC:
         self.icem_params = icem_params
 
         for r in robots.values():
-            r.build_step(mpc_params['dt'])
-            
+            cost_fn = self.build_cost_fn(r, mpc_params)
+            r.build_step(mpc_params['dt'], cost_fn)
+
         self.H  = mpc_params['H']   # number of mpc steps
     
     def solve(self, params):
@@ -37,19 +38,20 @@ class MPC:
         self.__args['lam_x0'] = sol['lam_x']
         self.__args['lam_g0'] = sol['lam_g']
 
-        
         return self.__vars.dictize(sol['x'].full())
 
-    def traj_cost(self, robot, traj):
-        J = 0
-        for h in range(self.H):
-            d = robot.get_ext_state(traj[:,h])
-            J += ca.sumsqr(d['p']-ca.DM([0.3,0.5,0.8])) + 0.05*ca.sumsqr(d['dx'])
-        return J
+    def build_cost_fn(self, robot, mpc_params):
+        st = robot.get_step_args()
+        ext_st = robot.get_ext_state(st)
+        cost = 0
+        cost += ca.sumsqr(ext_st['p'] - mpc_params['des_pose'])
+        cost += mpc_params['vel_cost']*ca.sumsqr(ext_st['dx'])
+        st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
+        return st_cost
     
     def build_solver(self, params0):
         self.__pars = ParamSet(params0)
-        # TODO: adjust so we're pulling state/input/params from dyn sys
+
         J = 0
         g = []
         self.__vars = DecisionVarSet(attr_names = ['lb', 'ub'])
@@ -60,14 +62,13 @@ class MPC:
         step_inputs['M_inv'] = self.__pars['M_inv']
         xi0 = dict(q = params0['q'], dq = params0['dq'])
         for name, rob in self.robots.items():
-            traj, cost, cont_const = rollout(rob,
-                                              self.H,
-                                              xi0,
-                                              **step_inputs)
+            traj, cost, cont_const = rollout(rob, self.H, xi0, **step_inputs)
+            traj.prefix_name(name+'/')
             self.__vars += traj
             J += cost
             g += cont_const
 
+        print(self.__vars)
         self.g = ca.vertcat(*g)
         self.lbg = ca.DM.zeros(self.g.shape[0])
         self.ubg = ca.DM.zeros(self.g.shape[0])

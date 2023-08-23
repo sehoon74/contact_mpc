@@ -156,12 +156,13 @@ class Robot(DynSys):
         u = self._u_set.extend_vars(H = H).get_vars()['u']
         par = self._param.get_vars()
 
-        par.pop('M_inv')
-        M_inv =  self.inv_mass_fn(xi0[:self.nq]) # Replace parameter with derived from xi0
+        #par.pop('M_inv')
+        #M_inv =  self.inv_mass_fn(xi0[:self.nq]) # Replace parameter with derived from xi0
 
         step_ma = self.step_vec.mapaccum(H)
 
-        res = step_ma(xi=xi0, u=u, M_inv=M_inv, **par)
+        #res = step_ma(xi=xi0, u=u, M_inv=M_inv, **par)
+        res = step_ma(xi=xi0, u=u, **par)
         cost = ca.sum2(res['cost'])
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'])

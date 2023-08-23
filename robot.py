@@ -167,7 +167,8 @@ class Robot(DynSys):
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'])
         self.rollout_map = self.rollout.map(num_particles)
-
+        self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()], [res['xi']],
+                                              ['xi0', 'u_traj', *par.keys()], ['xi'])
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
         arg_dict = {k:self._state[k] for k in self._state if k not in ['q', 'dq']}

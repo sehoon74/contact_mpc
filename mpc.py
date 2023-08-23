@@ -127,4 +127,7 @@ class MPC:
             self.std = params['alpha']*self.std + (1-params['alpha'])*new_std
             
         best_cost = cost[elite_indices[0]]
-        return best_cost, self.mu
+        best_sample = samples[:, elite_indices[0], :]
+        best_u = best_sample*self.std + self.mu
+        best_xi = rob.rollout_xi(xi0=xi0, u_traj=u_traj, M_inv=M_inv, imp_stiff=400*ca.DM.ones(3))['xi']
+        return best_cost, best_u, best_xi #self.mu

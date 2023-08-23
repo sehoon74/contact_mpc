@@ -106,7 +106,6 @@ class MPC:
         elite_samples = powerlaw_psd_gaussian(params['beta'],
                                         size=(self.nu, params['num_elites'], self.H))
         ns = params['num_samples']-params['num_elites']
-        
         for i in range(params['num_iter']):
             samples = powerlaw_psd_gaussian(params['beta'],
                                             size=(self.nu, ns, self.H))

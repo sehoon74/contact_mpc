@@ -1,18 +1,23 @@
-import casadi as ca
+import casadi as c
+import numpy as np
 import ruamel.yaml as yaml
 
 from contact import Contact
-from robot import Robot
+from robot import *
 
-p['names_franka'] = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4',
-                     'panda_joint5', 'panda_joint6', 'panda_joint7']
+import rospy
+from sensor_msgs.msg import JointState
+from geometry_msgs.msg import PoseStamped
+
+names_franka = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4',
+                'panda_joint5', 'panda_joint6', 'panda_joint7']
 
 def map_franka_joint_state(msg):
     try:
         q = []
         v = []
         tau = []
-        for jt_name in p['names_franka']:
+        for jt_name in names_franka:
             ind = msg.name.index(jt_name)
             q.append(msg.position[ind])
             v.append(msg.velocity[ind])
@@ -24,16 +29,7 @@ def map_franka_joint_state(msg):
         print("Error reading franka joint_state")
     return q, v, tau
 
-def build_jt_msg(q, dq = [], tau = [], names = []):
-    msg = JointState()
-    msg.header.stamp = rospy.Time.now()
-    msg.position = q
-    msg.velocity = dq
-    msg.effort = tau
-    msg.names = names
-    return msg
-
-def get_pose_msg(position = None, frame_id = 'panda_link0'):
+def build_pose_msg(position = None, frame_id = 'panda_link0'):
     msg = PoseStamped()
     msg.header.frame_id = frame_id
     msg.header.stamp = rospy.Time.now()
@@ -41,6 +37,15 @@ def get_pose_msg(position = None, frame_id = 'panda_link0'):
         msg.pose.position.x = position[0]
         msg.pose.position.y = position[1]
         msg.pose.position.z = position[2]
+    return msg
+
+def build_jt_msg(q, dq = [], tau = [], names = []):
+    msg = JointState()
+    msg.header.stamp = rospy.Time.now()
+    msg.position = q
+    msg.velocity = dq
+    msg.effort = tau
+    msg.name = names
     return msg
 
 def tf_to_state(msg):
@@ -81,10 +86,10 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
                                         sym_vars = sym_vars)
     modes = {}
     for mode in contact_params.get('modes'):
-        modes[mode] = Robot(robot_params['urdf_path'],
-                            attrs = attrs_state,
-                            subsys = [contact_models[model] for model in contact_params['modes'][mode]])
-    return modes
+        modes[mode] = LinearizedRobot(robot_params['urdf_path'],
+                                      attrs = attrs_state,
+                                      subsys = [contact_models[model] for model in contact_params['modes'][mode]])
+    return modes, contact_models
 
 def mult_shoot_rollout(sys, H, xi0, **step_inputs):
     state = sys.get_state(H)

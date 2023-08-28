@@ -5,15 +5,15 @@ from helper_fns import mult_shoot_rollout as rollout
 from colorednoise import powerlaw_psd_gaussian
 
 class MPC:
-    def __init__(self, robots, mpc_params, nlpopts = {}, icem = False):
+    def __init__(self, robots, mpc_params, ipopt_options = {}, icem = False):
         assert 'free' in robots, "Need at least the free-space model w/ key _free_!"
         self.robots = robots
 
-        self.nlpopts = nlpopts
+        self.ipopt_options = ipopt_options
         
         for r in robots.values():
             cost_fn = self.build_cost_fn(r, mpc_params)
-            r.build_step(mpc_params['dt'], cost_fn)
+            r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn)
 
         self.H  = mpc_params['H']   # number of mpc steps
         self.nu = robots['free'].nu
@@ -83,7 +83,7 @@ class MPC:
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
         prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
-        self.solver = ca.nlpsol('solver', 'ipopt', prob, self.nlpopts)
+        self.solver = ca.nlpsol('solver', 'ipopt', prob, self.ipopt_options)
 
     def add_max_force_constraint(self, tau_ext, q):
         H = self.H

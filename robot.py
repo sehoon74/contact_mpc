@@ -186,6 +186,8 @@ class Robot(DynSys):
             st.update(sys.get_ext_state(st))
         if self.__ctrl:
             st.update(self.__ctrl.get_ext_state(st))
+        for k,v in st.items():
+            if type(v) == ca.DM: st[k] = v.full()
         return st
 
 class LinearizedRobot(Robot):
@@ -199,6 +201,10 @@ class LinearizedRobot(Robot):
         self.meas_noise = ca.diag(ca.vertcat(attrs['meas_noise']['q']*ca.DM.ones(self.nq),
                                              attrs['meas_noise']['tau_ext']*ca.DM.ones(self.nq)))
 
+    def build_step(self, step_size, cost_fn = None):
+        super().build_step(step_size, cost_fn = cost_fn)
+        self.build_linearized()
+        
     def build_linearized(self):
         inp_args = self._param.get_vars()
         inp_args['u'] = self._u

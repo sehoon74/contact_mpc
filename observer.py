@@ -35,22 +35,27 @@ def build_step_fn(robot):
                        ['mu', 'cov', 'q_meas', 'tau_meas', 'M_inv'], # inputs to casadi function
                        ['mu_next', 'cov_next', 'likelihood'], jit_opts)
 
+class HybridParticleFilter():
+    pass
+
 class EKF():
     """ This defines an EKF observer """
     def __init__(self, robot, step_size):
+        robot.build_step(step_size)
+        
         xi_init, cov_init = robot.get_ekf_init()
         self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)} 
         self.step_fn = build_step_fn(robot)
         self.robot = robot
         self.nq = robot.nq
 
-    def step(self, q, tau, M_inv = None):
-        self.x['q_meas'] = q
-        self.x['tau_meas'] = tau
+    def step(self, q_meas, tau_meas, M_inv = None):
+        self.x['q_meas'] = q_meas
+        self.x['tau_meas'] = tau_meas
         if M_inv is not None:
             self.x['M_inv'] = M_inv
         else:
-            self.x['M_inv'] = self.robot.inv_mass_fn(q)
+            self.x['M_inv'] = self.robot.inv_mass_fn(q_meas)
         res = self.step_fn.call(self.x)
         
         self.x['mu'] = res['mu_next']

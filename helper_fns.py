@@ -4,6 +4,62 @@ import ruamel.yaml as yaml
 from contact import Contact
 from robot import Robot
 
+p['names_franka'] = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4',
+                     'panda_joint5', 'panda_joint6', 'panda_joint7']
+
+def map_franka_joint_state(msg):
+    try:
+        q = []
+        v = []
+        tau = []
+        for jt_name in p['names_franka']:
+            ind = msg.name.index(jt_name)
+            q.append(msg.position[ind])
+            v.append(msg.velocity[ind])
+            tau.append(msg.effort[ind])
+        q = np.array(q)
+        v = np.array(v)
+        tau = np.array(tau)
+    except:
+        print("Error reading franka joint_state")
+    return q, v, tau
+
+def build_jt_msg(q, dq = [], tau = [], names = []):
+    msg = JointState()
+    msg.header.stamp = rospy.Time.now()
+    msg.position = q
+    msg.velocity = dq
+    msg.effort = tau
+    msg.names = names
+    return msg
+
+def get_pose_msg(position = None, frame_id = 'panda_link0'):
+    msg = PoseStamped()
+    msg.header.frame_id = frame_id
+    msg.header.stamp = rospy.Time.now()
+    if position is not None:
+        msg.pose.position.x = position[0]
+        msg.pose.position.y = position[1]
+        msg.pose.position.z = position[2]
+    return msg
+
+def tf_to_state(msg):
+    q = np.array([msg.transform.rotation.w,
+         msg.transform.rotation.x,
+         msg.transform.rotation.y,
+         msg.transform.rotation.z])
+    r = quat_to_rotvec(q)
+    p = np.array([msg.transform.translation.x,
+         msg.transform.translation.y,
+         msg.transform.translation.z])
+    return np.hstack((p.T,np.squeeze(r)))
+
+def quat_to_rotvec(q):
+    q *= ca.sign(q[0])  # multiplying all quat elements by negative 1 keeps same rotation, but only q0 > 0 works here
+    th_2 = ca.acos(q[0])
+    th = th_2*2.0
+    return ca.vertcat(q[1]/ca.sin(th_2)*th, q[2]/ca.sin(th_2)*th, q[3]/ca.sin(th_2)*th)
+
 def yaml_load(path):
     try:
         with open(path, 'r') as f:

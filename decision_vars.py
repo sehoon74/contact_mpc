@@ -109,9 +109,13 @@ class DecisionVarSet(dict):
             read_pos += v_size
         return d
 
-    def prefix_name(self, name):
-        new_vars = {attr:{name+k:v for k,v in self.__vars[attr].items()} for attr in self.attr_names+['init', 'sym']}
-        self.__vars = new_vars
+    def namespace_var(self, var:str, name:str):
+        # Prefix name to variable var
+        for attr in self.attr_names+['init', 'sym']:
+            self.__vars[attr][name+var] = self.__vars[attr][var]
+            self.__vars[attr].__delitem__(var)
+        super().__delitem__(var)
+        super().__setitem__(name+var, self.__vars['sym'][name+var])
 
     def spawn_from_attrs(self, attrs):
         dec_vars = DecisionVarSet(attr_names=self.attr_names,
@@ -142,7 +146,7 @@ class ParamSet(DecisionVarSet):
         super().add_vars(init = init)
 
 """
-Class which prefixes the name on the keys for gets and sets via []
+Class which prefixes the name on keys for sets via []
 """
 class NamedDict(dict):
     def __init__(self, name, d = {}):

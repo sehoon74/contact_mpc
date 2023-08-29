@@ -1,4 +1,5 @@
 import casadi as ca
+from sys import float_info
 from robot import Robot
 from scipy.stats import multivariate_normal
 
@@ -35,14 +36,10 @@ def build_step_fn(robot):
                        ['mu', 'cov', 'q_meas', 'tau_meas', 'M_inv'], # inputs to casadi function
                        ['mu_next', 'cov_next', 'likelihood'], jit_opts)
 
-class HybridParticleFilter():
-    pass
-
 class EKF():
     """ This defines an EKF observer """
     def __init__(self, robot, step_size):
         robot.build_step(step_size)
-        
         xi_init, cov_init = robot.get_ekf_init()
         self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)} 
         self.step_fn = build_step_fn(robot)
@@ -60,9 +57,97 @@ class EKF():
         
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
-         
+        self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
+
+    def get_statedict(self):
+        return self.robot.get_statedict(self.x['mu'])
+    
     def get_ext_state(self):
         return self.robot.get_ext_state(self.x['mu'])
+
+
+class EKF_bank():
+    def __init__(self, robots, step_size):
+        self.ekfs = {k:EKF(v, step_size) for k,v in robots.items()}
+        self.x = {}
+        self.x['belief'] = {k:1.0/len(robots) for k in robots}
+
+    def step(self, q_meas, tau_meas, M_inv = None):
+        for robot, ekf in self.ekfs.items():
+            ekf.step(q_meas, tau_meas, M_inv)
+            self.x['belief'][robot] = ekf.likelihood
+
+    def get_statedict(self):
+        # Return the estimated state as dict, plus the belief
+        d = {'belief_'+robot:self.x['belief'][robot] for robot in self.ekfs.keys()}
+        for ekf in self.ekfs.values():
+            d.update(ekf.get_statedict())
+        return d
+    
+    def get_ext_state(self):
+        d = {'belief':self.x['belief']}
+        for ekf in self.ekfs.values():
+            d.update(ekf.get_ext_state())
+        return d
+            
+class Particle: #TODO: inherit EKF directly?
+    def __init__(self, belief, mu, cov, weight):
+        self.belief = belief
+        self.mu = mu
+        self.cov = cov
+        self.weight = weight
+        
+class HybridParticleFilter():
+    def __init__(self, robots, step_size):
+        assert 'free' in robots, "Need at least a free-space model with key: free"
+        self.num_particles = 80
+        self.trans_matrix = np.array([[0.8, 0.2], [0.2, 0.8]])
+
+        for robot in robots.values():
+            robot.build_step(step_size)
+        self.step_fn = {k:build_step_fn(v) for k,v in robots.items()}
+        
+        xi_init, cov_init = robots['free'].get_ekf_init()
+        
+        self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)}
+        self.x['belief'] = {k:1.0/len(robots) for k in robots}
+
+        self.particles = [Particle(self.x['belief'], self.x['mu'], self.x['cov'], 1/self.num_particles) for _ in range(self.num_particles)]
+        
+    def step(self, q_meas, tau_meas, M_inv = None):
+        self.propogate(q_meas, tau_meas, M_inv)
+        self.calc_weights()
+        if self.N_eff < self.num_particles/5.0:
+            self.stratified_resampling()
+        self.estimate_state()
+
+    def propogate(self, q_meas, tau_meas, M_inv):
+        step_args = dict(q_meas=q_meas, tau_meas=tau_mes, M_inv=M_inv)
+        for particle in enumerate(self.particles):
+            particle.belief = np.matmul(particle.bel, self.trans_matrix)
+            particle.mode = np.random.choice(self.x['belief'].keys(), p=particle.belief)
+            step_args['mu'] = particle.mu
+            step_args['cov'] = particle.cov
+            res = self.step_fn[sampled_mode].call(step_args)
+            particle.mu = res['mu']
+            particle.cov = res['cov']
+            particle.weight = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
+
+    def calc_weights(self):
+        summation = sum(p.weight for p in self.particles)
+        weightsum = sum(np.exp(p.weight-np.log(summation))**2 for p in self.particles)        
+        self.N_eff = 1/weightsum
+        for mode in self.x['belief']:
+            self.x['belief'][mode] = sum(np.exp(p.weight) for p in self.particles)
+        for particle in particles:
+            particle.belief = self.x['belief'].values()
+        
+    def estimate_state(self):
+        return [(p.mode, p.mu) for p in self.particles]
+
+    def get_belief(self):
+        return self.x['belief']
+        
     
 class MomentumObserver():
     ''' Mostly following https://elib.dlr.de/129060/1/root.pdf '''

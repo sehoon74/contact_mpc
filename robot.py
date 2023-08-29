@@ -11,7 +11,6 @@ class DynSys():
         self._input = None # Symbolic input variables for the step function
         self._param = None # Symbolic parameters, including all subsys, which are not optimized but needed for step
 
-    
     def get_step_args(self) -> dict:
         """ Returns all symbolic arguments used for the step function in a dict """
         step_args = self._state.get_vars()
@@ -45,14 +44,15 @@ class Robot(DynSys):
         Currently, it is assumed that all subsystems can be algebraically evaluated from _state
 
     """
-    def __init__(self, urdf_path:str, attrs = {}, subsys = [], ctrl = None, ee_frame_name = 'fr3_link8', visc_fric = 30):
+    def __init__(self, urdf_path:str, ee_frame_name = 'fr3_link8', visc_fric = 30,
+                 attrs = {}, subsys = [], ctrl = None, name = ''):
         """ IN: urdf_path, path to URDF file
             IN: attrs for variables (e.g. initial value, lower/upper bounds, process noise)
             IN: subsys is a list of systems coupled to the robot
             IN: ctrl is an optional controller which binds to tau_input and defines new _input variables
             IN: ee_frame_name is the name in the urdf file for the end-effector
         """
-        print(f"Building robot model from {urdf_path} with TCP {ee_frame_name}")
+        print(f"Building robot {name} from {urdf_path} with TCP {ee_frame_name}")
         if subsys: print(f"  with subsys {[s.name for s in subsys]}")
         if ctrl:   print(f"  with control {ctrl.name}")
         self.__subsys = subsys   # subsystems which are coupled to the robot  
@@ -60,13 +60,13 @@ class Robot(DynSys):
         
         self.nq, self.fwd_kin, self.mass_fn = load_urdf(urdf_path, ee_frame_name)
         
-        self.build_vars(attrs, visc_fric)
+        self.build_vars(attrs, visc_fric, name)
         self.build_fwd_kin()
         self.add_subsys_and_ctrl()
     
-    def build_vars(self, attrs:dict, visc_fric:float):
+    def build_vars(self, attrs:dict, visc_fric:float, name:str):
         """ Build symbolic variables with attributes """
-        self._state = DecisionVarSet(attr_names = list(attrs.keys()))
+        self._state = DecisionVarSet(name = name, attr_names = list(attrs.keys()))
         self._state.add_vars(init=dict( q=ca.DM.zeros(self.nq),
                                        dq=ca.DM.zeros(self.nq)), **attrs)
         
@@ -173,9 +173,12 @@ class Robot(DynSys):
             F_ext += sys.get_force(arg_dict)
         return F_ext
 
+    def get_statedict(self, vec):
+        return self._state.dictize(vec)
+    
     def get_ext_state(self, st):
         """ Produce all values which are derived from state.
-            IN: complete state as dict or vect
+            IN: complete state as dict or vec
         """
         if type(st) == ca.DM: st = st.full()
         if type(st) is not dict: st = self._state.dictize(st)

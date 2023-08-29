@@ -4,6 +4,7 @@ import ruamel.yaml as yaml
 
 from contact import Contact
 from robot import *
+from impedance_controller import ImpedanceController
 
 import rospy
 from sensor_msgs.msg import JointState
@@ -82,22 +83,34 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
     for model in contact_params.get('models'):
         contact_models[model] = Contact(name = model+'/',
                                         pars = contact_params['models'][model],
-                                        attrs = attrs_state,
+                                        attrs = attrs,
                                         sym_vars = sym_vars)
-    modes = {}
+    modes_filter = {}
     for mode in contact_params.get('modes'):
-        modes[mode] = LinearizedRobot(robot_params['urdf_path'],
-                                      attrs = attrs_state,
-                                      subsys = [contact_models[model] for model in contact_params['modes'][mode]])
-    return modes, contact_models
+        modes_filter[mode] = LinearizedRobot(robot_params['urdf_path'],
+                                             attrs = attrs_state,
+                                             subsys = [contact_models[model] for model in contact_params['modes'][mode]])
+        
+    imp = ImpedanceController(input_vars = ['imp_rest'], attrs = attrs)
+    modes_mpc = {}
+    for mode in contact_params.get('modes'):
+        modes_mpc[mode] = Robot(robot_params['urdf_path'],
+                                attrs = attrs,
+                                ctrl = imp,
+                                subsys = [contact_models[model] for model in contact_params['modes'][mode]])
+    return modes_filter, modes_mpc, contact_models
 
-def mult_shoot_rollout(sys, H, xi0, **step_inputs):
+def mult_shoot_rollout(sys, name, H, xi0, **step_inputs):
+    name = name + '/'
     state = sys.get_state(H)
-    res = sys.step(**step_inputs, **state.get_vars())
+    assert set(['q', 'dq']) == state.get_vars().keys(), 'Additional state elements not handled currently with named mode rollouts'
+    state.namespace_var('q', name)
+    state.namespace_var('dq', name)
+    res = sys.step(q=state[name+'q'], dq=state[name+'dq'], **step_inputs)
     continuity_constraints = []
-    for st in state.get_vars().keys():
-        continuity_constraints += [state[st][:, 0] - xi0[st]]
-        continuity_constraints += [ca.reshape(res[st][:, :-1] - state[st][:, 1:], -1, 1)]
+    for st in ['q', 'dq']:
+        continuity_constraints += [state[name+st][:, 0] - xi0[st]]
+        continuity_constraints += [ca.reshape(res[st][:, :-1] - state[name+st][:, 1:], -1, 1)]
     return state, ca.sum2(res['cost']), continuity_constraints
 
 def singleshoot_rollout(sys, H, x0, inp_traj, **step_inputs):

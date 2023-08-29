@@ -34,29 +34,29 @@ class ContactMPC():
         self.tcp_pub = rospy.Publisher('tcp_pos', JointState, queue_size=1)
         self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
         
-        self.robots, self.contacts = spawn_models(robot_path = config_path+"franka.yaml",
+        robots_obs, robots_mpc, self.contacts = spawn_models(robot_path = config_path+"franka.yaml",
                                                   attr_path  = config_path+"attrs.yaml", 
                                                   contact_path = config_path+"contact.yaml",
                                                   sym_vars = est_pars)        
-        self.nq = self.robots['free'].nq
+        self.nq = robots_obs['free'].nq
 
-        self.observer = EKF(self.robots['free'], step_size = 1.0/250.0 )
-        #self.observer = HybridParticleFilter(self.robots)
-        
+        self.observer = EKF_bank(robots_obs, step_size = 1.0/250.0 )
+            
         self.contact_env_pub = {c:rospy.Publisher(c+'/env', PoseStamped, queue_size=1) for c in self.contacts}
         self.contact_rob_pub = {c:rospy.Publisher(c+'/rob', PoseStamped, queue_size=1) for c in self.contacts}
         
         # Set up robot state and MPC state
         self.rob_state = {'imp_stiff':None}
-        if hasattr(self, 'observer'): self.rob_state.update(self.observer.get_ext_state())    
-        if not sim:
-            self.par_client = dynamic_reconfigure.client.Client( "/cartesian_impedance_example_controller/dynamic_reconfigure_compliance_param_node")
-        else:
+        self.rob_state.update(self.observer.get_statedict())    
+        if sim:
             self.rob_state['imp_stiff'] = np.array([200, 200, 200])
+        else:
+            self.par_client = dynamic_reconfigure.client.Client( "/cartesian_impedance_example_controller/dynamic_reconfigure_compliance_param_node")
+            
         self.init_orientation = self.tf_buffer.lookup_transform('panda_link0', 'panda_EE', rospy.Time(0),
                                                                 rospy.Duration(1)).transform.rotation
-
-        self.mpc = MPC(self.robots,
+        # Set up MPC
+        self.mpc = MPC(robots_mpc,
                        mpc_params=self.mpc_params,
                        ipopt_options=self.ipopt_options)
 
@@ -81,24 +81,22 @@ class ContactMPC():
 
     def publish_observer(self):
         odict = self.observer.get_ext_state()
+        
         msg_jt    = build_jt_msg(q=odict['q'], dq=odict['dq'])
         msg_F_est = build_jt_msg(q=odict.get('F_ext', np.zeros(3))) 
         msg_tcp   = build_jt_msg(q=odict['p'], dq=odict['dx'])
+        msg_bel   = build_jt_msg(q=odict['belief'].values(),
+                                 names=odict['belief'].keys())
 
         if not rospy.is_shutdown():
             self.joint_pub.publish(msg_jt)
             self.F_pub.publish(msg_F_est)
             self.tcp_pub.publish(msg_tcp)
-
-        if type(self.observer) is HybridParticleFilter:
-            msg_bel = build_jt_msg(q=odict['belief'].values(),
-                                     names=odict['belief'].keys())
-            if not rospy.is_shutdown():
-                self.bel_pub.publish(msg_bel)
+            self.bel_pub.publish(msg_bel)
             
     def publish_imp_rest(self, imp_rest):
         #des_pose_w = compliance_to_world(self.rob_state['pose'], action_to_execute, only_position=True)
-        msg_imp_xd = get_pose_msg(position=imp_rest, frame_id='panda_link0')    # get desired rest pose in world frame
+        msg_imp_xd = build_pose_msg(position=imp_rest, frame_id='panda_link0')    # get desired rest pose in world frame
         msg_imp_xd.pose.orientation = self.init_orientation
         if not rospy.is_shutdown():
             self.imp_rest_pub.publish(msg_imp_xd)
@@ -116,9 +114,9 @@ class ContactMPC():
     def control(self):
         if any(el is None for el in self.rob_state.values()) or rospy.is_shutdown(): return
         
-        self.rob_state.update(self.observer.get_ext_state())  
+        self.rob_state.update(self.observer.get_statedict())
         start = time.time()
-        mpc_result = self.mpc.solve(self.rob_state)
+        _, mpc_result = self.mpc.solve(self.rob_state)
         self.timelist.append(time.time() - start)
 
         self.publish_imp_rest(mpc_result['imp_rest'])  # publish impedance optimized rest pose --> to be sent to franka impedance interface
@@ -136,7 +134,7 @@ def start_node(config_path, est_pars, sim):
     rospy.sleep(1e-1)  # Sleep so ROS can init
     while not rospy.is_shutdown():
         node.update_state_async()
-        #node.control()
+        node.control()
         rospy.sleep(1e-8)
 
 if __name__ == '__main__':

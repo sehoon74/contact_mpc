@@ -6,7 +6,7 @@ from colorednoise import powerlaw_psd_gaussian
 
 class MPC:
     def __init__(self, robots, mpc_params, ipopt_options = {}, icem = False):
-        assert 'free' in robots, "Need at least the free-space model w/ key _free_!"
+        assert 'free' in robots, "Need at least the free-space model w/ key: free!"
         self.robots = robots
 
         self.ipopt_options = ipopt_options
@@ -19,11 +19,11 @@ class MPC:
         self.nu = robots['free'].nu
 
         self.icem = icem
-        if icem:
-            self.icem_init(mpc_params)
+        if icem: self.icem_init(mpc_params)
         
     def solve(self, params):
         r = self.robots['free']
+        
         params['M_inv'] = r.inv_mass_fn(params['q'])
 
         if not hasattr(self, "solver"): self.build_solver(params)
@@ -44,7 +44,7 @@ class MPC:
         self.__args['lam_x0'] = sol['lam_x']
         self.__args['lam_g0'] = sol['lam_g']
 
-        return sol['f'], self.__vars.dictize(sol['x'].full())
+        return sol['f'], self.__vars.dictize(sol['x'])
 
     def build_cost_fn(self, robot, mpc_params):
         st = robot.get_step_args()
@@ -68,8 +68,7 @@ class MPC:
         step_inputs['M_inv'] = self.__pars['M_inv']
         xi0 = dict(q = params0['q'], dq = params0['dq'])
         for name, rob in self.robots.items():
-            traj, cost, cont_const = rollout(rob, self.H, xi0, **step_inputs)
-            #traj.prefix_name(name+'/')  #not working as of 23.08
+            traj, cost, cont_const = rollout(rob, name, self.H, xi0, **step_inputs)
             self.__vars += traj
             J += cost
             g += cont_const

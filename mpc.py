@@ -70,7 +70,7 @@ class MPC:
         for name, rob in self.robots.items():
             traj, cost, cont_const = rollout(rob, name, self.H, xi0, **step_inputs)
             self.__vars += traj
-            J += cost
+            J += self.__pars['belief_'+name]*cost
             g += cont_const
 
         self.g = ca.vertcat(*g)

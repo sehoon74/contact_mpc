@@ -1,0 +1,10 @@
+# For testing about the joint pose q=ones
+
+modes:
+  free: []
+  point: [contact_1]
+models:
+  contact_1:
+    pos: [0, 0, 0]
+    stiff: [5e3, 0, 0]
+    rest: [0.300, 0.180, 0.816]

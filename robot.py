@@ -52,9 +52,9 @@ class Robot(DynSys):
             IN: ctrl is an optional controller which binds to tau_input and defines new _input variables
             IN: ee_frame_name is the name in the urdf file for the end-effector
         """
-        print(f"Building robot {name} from {urdf_path} with TCP {ee_frame_name}")
-        if subsys: print(f"  with subsys {[s.name for s in subsys]}")
-        if ctrl:   print(f"  with control {ctrl.name}")
+        #print(f"Building robot {name} from {urdf_path} with TCP {ee_frame_name}")
+        #if subsys: print(f"  with subsys {[s.name for s in subsys]}")
+        #if ctrl:   print(f"  with control {ctrl.name}")
         self.__subsys = subsys   # subsystems which are coupled to the robot  
         self.__ctrl = ctrl       # controller which sets tau_input
         

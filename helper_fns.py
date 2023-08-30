@@ -96,17 +96,16 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
     for mode in contact_params.get('modes'):
         modes_mpc[mode] = Robot(robot_params['urdf_path'],
                                 attrs = attrs,
+                                name = mode+"/",
                                 ctrl = imp,
                                 subsys = [contact_models[model] for model in contact_params['modes'][mode]])
     return modes_filter, modes_mpc, contact_models
 
-def mult_shoot_rollout(sys, name, H, xi0, **step_inputs):
-    name = name + '/'
+def mult_shoot_rollout(sys, H, xi0, **step_inputs):
+    name = sys.name
+    print(name)
     state = sys.get_state(H)
-    assert set(['q', 'dq']) == state.get_vars().keys(), 'Additional state elements not handled currently with named mode rollouts'
-    state.namespace_var('q', name)
-    state.namespace_var('dq', name)
-    res = sys.step(q=state[name+'q'], dq=state[name+'dq'], **step_inputs)
+    res = sys.step(q=state['q'], dq=state['dq'], **step_inputs)
     continuity_constraints = []
     for st in ['q', 'dq']:
         continuity_constraints += [state[name+st][:, 0] - xi0[st]]

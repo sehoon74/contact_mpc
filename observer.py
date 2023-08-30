@@ -63,7 +63,8 @@ class EKF():
         return self.robot.get_statedict(self.x['mu'])
     
     def get_ext_state(self):
-        return self.robot.get_ext_state(self.x['mu'])
+        d = self.robot._state.dictize(self.x['mu'])
+        return self.robot.get_ext_state(d)
 
 
 class EKF_bank():

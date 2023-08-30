@@ -2,7 +2,7 @@ import casadi as ca
 import numpy as np
 
 from robot import DynSys
-from decision_vars import DecisionVarSet, ParamSet
+from decision_vars import DecisionVarDict, ParamDict
 """
 Impedance model with rest position, stiffness, etc
 
@@ -24,16 +24,16 @@ class ImpedanceController(DynSys):
         self.build_force()
  
     def build_vars(self, input_vars, attrs):
-        self._input = DecisionVarSet(attr_names = ['lb', 'ub'])
+        self._input = DecisionVarDict(attr_names = ['lb', 'ub'])
         self._imp_pars = {} # used in impedance calc
         imp_init = {k:ca.DM.zeros(3) for k in ['imp_stiff', 'imp_rest']} 
         if input_vars:
             init = {var: imp_init.pop(var) for var in input_vars}
             self._input.add_vars(init = init, **attrs)
-            self._imp_pars.update(self._input)
+            self._imp_pars.update(self._input.get_vars())
         if imp_init: # if there's anything left...
-            self._param = ParamSet(imp_init)
-            self._imp_pars.update(self._param)
+            self._param = ParamDict(imp_init)
+            self._imp_pars.update(self._param.get_vars())
 
     def build_force(self):
         p = ca.SX.sym('p', 3)
@@ -44,10 +44,10 @@ class ImpedanceController(DynSys):
         dx = ca.SX.sym('dx',3)
 
         # Builds force assuming impedance parameters are in cartesian space, as is the case with the Franka Emika
-        F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest)
+        F = ca.diag(imp_damp) @ dx + ca.diag(imp_stiff) @ (imp_rest-p)
         self.__F_fn = ca.Function('F', dict(p=p, R=R, dx=dx, F=F, **self._input, **self._param),
                                   ['p', 'R', 'dx', *self._input.keys(), *self._param.keys()], ['F'])
-        
+
     def get_ext_state(self, d):
         return {'F_imp':self.get_force(d)}
     

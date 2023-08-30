@@ -56,11 +56,11 @@ class MPC:
         return st_cost
     
     def build_solver(self, params0):
-        self.__pars = ParamSet(params0)
+        self.__pars = ParamDict(params0)
 
         J = 0
         g = []
-        self.__vars = DecisionVarSet(attr_names = ['lb', 'ub'])
+        self.__vars = DecisionVarDict(attr_names = ['lb', 'ub'])
         self.__vars += self.robots['free'].get_input(self.H)
 
         step_inputs = self.__vars.get_vars()
@@ -68,7 +68,7 @@ class MPC:
         step_inputs['M_inv'] = self.__pars['M_inv']
         xi0 = dict(q = params0['q'], dq = params0['dq'])
         for name, rob in self.robots.items():
-            traj, cost, cont_const = rollout(rob, name, self.H, xi0, **step_inputs)
+            traj, cost, cont_const = rollout(rob, self.H, xi0, **step_inputs)
             self.__vars += traj
             J += self.__pars['belief_'+name]*cost
             g += cont_const

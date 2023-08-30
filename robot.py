@@ -16,14 +16,15 @@ class DynSys():
         step_args = self._state.get_vars()
         if self._param: step_args.update(self._param.get_vars())
         if self._input: step_args.update(self._input.get_vars())
+        if step_args.get('tau_input') is not None: step_args.pop('tau_input')
         return step_args
 
-    def get_input(self, H = 1) -> DecisionVarSet:
+    def get_input(self, H = 1) -> DecisionVarDict:
         """ Returns the input variables, repeated along last dim by planning horizon H
              _input is typically determined by the __ctrl object """
         return self._input.extend_vars(H)
 
-    def get_state(self, H = 1) -> DecisionVarSet:
+    def get_state(self, H = 1) -> DecisionVarDict:
         """ Returns the dynamic state, repeated along last dim by planning horizon H """
         return self._state.extend_vars(H = H)
 
@@ -52,9 +53,6 @@ class Robot(DynSys):
             IN: ctrl is an optional controller which binds to tau_input and defines new _input variables
             IN: ee_frame_name is the name in the urdf file for the end-effector
         """
-        #print(f"Building robot {name} from {urdf_path} with TCP {ee_frame_name}")
-        #if subsys: print(f"  with subsys {[s.name for s in subsys]}")
-        #if ctrl:   print(f"  with control {ctrl.name}")
         self.__subsys = subsys   # subsystems which are coupled to the robot  
         self.__ctrl = ctrl       # controller which sets tau_input
         self.name = name
@@ -67,14 +65,14 @@ class Robot(DynSys):
     
     def build_vars(self, attrs:dict, visc_fric:float, name:str):
         """ Build symbolic variables with attributes """
-        self._state = DecisionVarSet(name = name, attr_names = list(attrs.keys()))
+        self._state = DecisionVarDict(name = name, attr_names = list(attrs.keys()))
         self._state.add_vars(init=dict( q=ca.DM.zeros(self.nq),
                                        dq=ca.DM.zeros(self.nq)), **attrs)
         
         self.visc_fric = visc_fric*ca.DM.eye(self.nq)
 
         # Inverse mass is a parameter to step to allow us to calculate M_inv once and use multiple times
-        self._param = ParamSet(dict(M_inv = ca.DM.zeros(self.nq, self.nq)))
+        self._param = ParamDict(dict(M_inv = ca.DM.zeros(self.nq, self.nq)))
                 
     def build_fwd_kin(self):
         """ This builds fwd kinematics, Jacobian matrix, and pseudoinv to the ee_frame_name
@@ -96,7 +94,7 @@ class Robot(DynSys):
         self._xi = self._state.vectorize() # State vector, symbolic variable
         self.nx = self._xi.shape[0]
 
-        self._input = DecisionVarSet(['lb', 'ub']) # Your input has lower / upper bounds, right? 
+        self._input = DecisionVarDict(['lb', 'ub']) # Your input has lower / upper bounds, right? 
         if self.__ctrl:
             self._param += self.__ctrl._param
             self._input += self.__ctrl._input
@@ -133,7 +131,7 @@ class Robot(DynSys):
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self._input['tau_input'])
         dq_next = dq + step_size*ddq
         q_next = q + step_size*dq_next
-        
+
         # Build dictionary step function
         self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],
                                         inp_args.keys(), ['q', 'dq', 'cost']).expand()
@@ -166,7 +164,7 @@ class Robot(DynSys):
                                               ['xi0', 'u_traj', *par.keys()], ['xi'])
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
-        arg_dict = {k:self._state[k] for k in self._state if k not in ['q', 'dq']}
+        arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
         for sys in self.__subsys:
             F_ext += sys.get_force(arg_dict)
@@ -177,19 +175,19 @@ class Robot(DynSys):
     
     def get_ext_state(self, st):
         """ Produce all values which are derived from state.
-            IN: complete state as dict or vec
+            IN: complete state as dict
         """
         if type(st) == ca.DM: st = st.full()
-        if type(st) is not dict: st = self._state.dictize(st)
         st = {k:v for k, v in st.items()}
-        st['p'], st['R'] = self.fwd_kin(st['q'])
-        st['dx'] = self.tcp_motion(st['q'], st['dq'])[1]
+        print(st.keys())
+        st['p'], st['R'] = self.fwd_kin(st[self.name+'q'])
+        st['dx'] = self.tcp_motion(st[self.name+'q'], st[self.name+'dq'])[1]
         for sys in self.__subsys:
             st.update(sys.get_ext_state(st))
         if self.__ctrl:
             st.update(self.__ctrl.get_ext_state(st))
-        for k,v in st.items():
-            if type(v) == ca.DM: st[k] = v.full()
+        for k in list(st):
+            if type(st.get(k)) == ca.DM: st.__setitem__(k, st.get(k).full())
         return st
 
 class LinearizedRobot(Robot):

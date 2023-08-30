@@ -2,7 +2,7 @@ import casadi as ca
 import numpy as np
 
 from robot import DynSys
-from decision_vars import DecisionVarSet, NamedDict
+from decision_vars import DecisionVarDict, NamedDict
 """
 Single point contact stiffness model with parameters for
 contact location in TCP, rest position, and stiffness.
@@ -27,7 +27,7 @@ class Contact(DynSys):
         self.build_contact()   
     
     def build_vars(self, sym_vars, name, attrs):
-        self._state = DecisionVarSet(attr_names = list(attrs.keys()), name = name)
+        self._state = DecisionVarDict(attr_names = list(attrs.keys()), name = name)
         if sym_vars:
             init = {k: self._pars[k] for k in sym_vars}
             self._state.add_vars(init = init, **attrs)

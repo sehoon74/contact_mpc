@@ -55,9 +55,7 @@ class DecisionVarSet(dict):
                 assert attr in self.attr_defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
                 val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.attr_defaults[attr]
                 self.__vars[attr][name] = np.full(ini.shape, val)
-    
-    def __setitem__(self, key, value):
-        return NotImplementedError
+        self.update_super()
 
     def __delitem__(self, key):
         raise NotImplementedError
@@ -69,6 +67,9 @@ class DecisionVarSet(dict):
         """ Input is self.name+key """
         return self.__vars['sym'].get(named_key)
 
+    def update_super(self):
+        for k, v in self.__vars['sym'].items(): self[k] = v
+
     """
     Adds other variables to self, the attributes are projected down to those in self
     """
@@ -76,6 +77,7 @@ class DecisionVarSet(dict):
         assert set(self.attr_names) <= set(other.attr_names), "LHS set has attributes that RHS doesn't"
         for attr in list(self.attr_names)+['init', 'sym']:
             self.__vars[attr].update(other.get_vars(attr))
+        self.update_super()
         return self
     
     def __len__(self):

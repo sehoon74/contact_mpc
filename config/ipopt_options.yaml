@@ -1,36 +1,32 @@
-ipopt.acceptable_constr_viol_tol: 2.0e-04
-ipopt.bound_mult_reset_threshold: 1000
-ipopt.bound_relax_factor: 1.0e-04
-ipopt.check_derivatives_for_naninf: 'no'
-ipopt.constr_mult_reset_threshold: 0
-ipopt.constr_viol_tol: 1.0e-05
-ipopt.evaluate_orig_obj_at_resto_trial: 'yes'
-ipopt.expect_infeasible_problem: 'no'
-ipopt.expect_infeasible_problem_ctol: 0.0001
-ipopt.expect_infeasible_problem_ytol: 100000000.0
-ipopt.fixed_variable_treatment: 'make_constraint'
-ipopt.linear_solver: 'MUMPS' #'MUMPS'
-ipopt.max_cpu_time: 1000000.0
-ipopt.max_iter: 50
-ipopt.mu_init: 0.01
-ipopt.mu_oracle: probing
-ipopt.mu_strategy: adaptive
-ipopt.print_frequency_iter: 1
-ipopt.print_level: 0 # number of levels for optimization results
-ipopt.print_options_documentation: 'no'
-ipopt.print_timing_statistics: 'yes'
-ipopt.print_user_options: 'no'
-ipopt.required_infeasibility_reduction: 0.9
-ipopt.soft_resto_pderror_reduction_factor: 0.9999
-ipopt.start_with_resto: 'no'
-ipopt.tol: 1.0e-06
-ipopt.warm_start_bound_frac: 1.0e-09
-ipopt.warm_start_bound_push: 1.0e-09
-ipopt.warm_start_init_point: 'yes'
-ipopt.warm_start_mult_bound_push: 1.0e-09
-ipopt.warm_start_slack_bound_frac: 1.0e-09
-ipopt.warm_start_slack_bound_push: 1.0e-09
-ipopt.ma57_automatic_scaling: 'no'
+# Print settings
+ipopt.print_level: 0 # 0 to 5, 5 is most print info
 print_time: false
 verbose: false
+
+# Termination conditions
+ipopt.tol: 1.0e-05   # Tolerance on change in scaled obj fn
+ipopt.constr_viol_tol: 5.0e-04
+ipopt.max_cpu_time: 10.0
+ipopt.max_iter: 50
+ipopt.acceptable_constr_viol_tol: 5.0e-04
+ipopt.acceptable_tol: 1.0e-5
+ipopt.acceptable_iter: 5
+
+ipopt.bound_relax_factor: 1.0e-04
+
+ipopt.fixed_variable_treatment: 'make_parameter'
+
+ipopt.mu_strategy: adaptive
+ipopt.mu_oracle: probing
+
+#ipopt.mu_strategy: monotone
+#ipopt.mu_init: 0.1
+
+ipopt.linear_solver: 'MUMPS' #'MUMPS' or 'MA86'
+ipopt.ma57_automatic_scaling: 'no'
+
+ipopt.warm_start_bound_frac: 1.0e-08
+ipopt.warm_start_bound_push: 1.0e-08
+ipopt.warm_start_init_point: 'yes'
+
 

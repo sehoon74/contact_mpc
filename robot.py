@@ -2,7 +2,7 @@ import casadi as ca
 import pinocchio as pin
 import pinocchio.casadi as cpin
 
-from decision_vars import DecisionVarSet, ParamSet
+from decision_vars import *
 
 class DynSys():
     """ Minimal, abstract class to standardize interfaces """
@@ -57,6 +57,7 @@ class Robot(DynSys):
         #if ctrl:   print(f"  with control {ctrl.name}")
         self.__subsys = subsys   # subsystems which are coupled to the robot  
         self.__ctrl = ctrl       # controller which sets tau_input
+        self.name = name
         
         self.nq, self.fwd_kin, self.mass_fn = load_urdf(urdf_path, ee_frame_name)
         
@@ -92,8 +93,7 @@ class Robot(DynSys):
         """ Add the variables from subsystems and control to the _state and _input sets """
         for sys in self.__subsys:
             self._state += sys._state      # Subsys is added to state so it gets vectorized cleanly
-        self._xi_set = self._state.vectorize_set('xi') # Symbolic variable for state as column vector
-        self._xi = self._xi_set['xi']
+        self._xi = self._state.vectorize() # State vector, symbolic variable
         self.nx = self._xi.shape[0]
 
         self._input = DecisionVarSet(['lb', 'ub']) # Your input has lower / upper bounds, right? 
@@ -105,8 +105,7 @@ class Robot(DynSys):
             self._input['tau_input'] = self.jac(self._state['q']).T@self.__ctrl.get_force(args_dict)
         else:
             self._input.add_vars({'tau_input':ca.DM.zeros(self.nq)})
-        self._u_set = self._input.vectorize_set('u')
-        self._u = self._u_set['u']
+        self._u = self._input.vectorize()
         self.nu = self._u.shape[0]
 
     def build_inv_mass(self, step_size:float):

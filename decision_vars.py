@@ -55,14 +55,19 @@ class DecisionVarSet(dict):
                 assert attr in self.attr_defaults or name in kwargs.get(attr), f"Attribute for {name} must have either defaults or specified in kwargs"
                 val = kwargs[attr][name] if name in kwargs.get(attr, []) else self.attr_defaults[attr]
                 self.__vars[attr][name] = np.full(ini.shape, val)
-
-        for k, v in self.__vars['sym'].items(): self[k] = v
     
     def __setitem__(self, key, value):
-        super().__setitem__(key, value)
+        return NotImplementedError
 
     def __delitem__(self, key):
         raise NotImplementedError
+
+    def __getitem__(self, key):
+        return self.__vars['sym'][key]
+
+    def get(self, named_key):
+        """ Input is self.name+key """
+        return self.__vars['sym'].get(named_key)
 
     """
     Adds other variables to self, the attributes are projected down to those in self
@@ -71,8 +76,6 @@ class DecisionVarSet(dict):
         assert set(self.attr_names) <= set(other.attr_names), "LHS set has attributes that RHS doesn't"
         for attr in list(self.attr_names)+['init', 'sym']:
             self.__vars[attr].update(other.get_vars(attr))
-        for k in self.__vars['sym']:
-            super().__setitem__(k, self.__vars['sym'].get(k))
         return self
     
     def __len__(self):
@@ -80,13 +83,15 @@ class DecisionVarSet(dict):
 
     def __str__(self):
         s = "***** Decision Vars *****\n"
+        s += f"Name: {self.name}\n"
         s += f"Attributes: {self.attr_names}\n"
         s += "Vars: \n"
         for key in self.__vars['sym']:
-            s += f"  {key}: {self[key]}, shape: {self[key].shape}\n"
+            s += f"  {key}: {self.get(key)}, shape: {self.get(key).shape}\n"
         return s
     
     def vectorize(self, attr = 'sym', d = {}):
+        """ Turns dictionary d or attribute attr into vector """
         if not d:
             d = self.__vars[attr]
         for k in d.keys():
@@ -97,9 +102,8 @@ class DecisionVarSet(dict):
         """
         vec is the numerical optimization results, fills the dict x with reshaping as needed
         """
-        #assert len(vec) == len(self), "Length of optimization doesn't match initial x0"
         read_pos = 0
-        d = {}
+        d = NamedDict(self.name)
         for key, init in self.__vars['init'].items():
             v_size  = init.size
             v_shape = init.shape
@@ -108,14 +112,6 @@ class DecisionVarSet(dict):
             d[key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
             read_pos += v_size
         return d
-
-    def namespace_var(self, var:str, name:str):
-        # Prefix name to variable var
-        for attr in self.attr_names+['init', 'sym']:
-            self.__vars[attr][name+var] = self.__vars[attr][var]
-            self.__vars[attr].__delitem__(var)
-        super().__delitem__(var)
-        super().__setitem__(name+var, self.__vars['sym'][name+var])
 
     def spawn_from_attrs(self, attrs):
         dec_vars = DecisionVarSet(attr_names=self.attr_names,
@@ -128,6 +124,7 @@ class DecisionVarSet(dict):
         return tuple([self.vectorize(arg) for arg in argv])
     
     def get_vars(self, attr = 'sym'):
+        "Returns a dict of attr"
         return {k:self.__vars[attr].get(k) for k in self.__vars[attr].keys()}
     
     def extend_vars(self, H):
@@ -135,6 +132,7 @@ class DecisionVarSet(dict):
         return self.spawn_from_attrs(attrs)
     
     def vectorize_set(self, new_vector_name):
+        """ Creates a new dec var set with a single vector for the set """
         attrs = {attr:{new_vector_name:self.vectorize(attr)} for attr in self.attr_names+['init']}
         dec_vars = self.spawn_from_attrs(attrs)
         dec_vars[new_vector_name] = self.vectorize() # Make sure we're preserving the actual symbolic vars
@@ -146,7 +144,8 @@ class ParamSet(DecisionVarSet):
         super().add_vars(init = init)
 
 """
-Class which prefixes the name on keys for sets via []
+Class which prefixes _name_ onto all keys. The values can be accessed by
+ d[key] or d.get(name+key).
 """
 class NamedDict(dict):
     def __init__(self, name, d = {}):

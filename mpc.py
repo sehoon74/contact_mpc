@@ -1,3 +1,5 @@
+# Filippo Rozzi, 2023
+
 from robot import Robot
 import casadi as ca
 from decision_vars import *
@@ -27,24 +29,18 @@ class MPC:
         params['M_inv'] = r.inv_mass_fn(params['q'])
 
         if not hasattr(self, "solver"): self.build_solver(params)
-            
-        self.__args['p'] = self.__pars.vectorize(d = params)
 
-        if self.icem:   # warm start nlp with iCEM
-            res = self.icem_warmstart(params_icem)
-            # TODO move to icem_warmstart
-            self.__vars.set_x0('q_free', best_traj)
-            self.__vars.set_x0('q_contact', best_traj)
-            self.__vars.set_x0('imp_rest', best_input)
-            self.__args['x0'] = self.vars.get_x0()
+        self.__args['p'] = self.__pars.vectorize_dict(d = params)
 
         sol = self.solver(**self.__args)
 
-        if not self.icem: self.__args['x0'] = sol['x']
+        self.__args['x0'] = sol['x']
         self.__args['lam_x0'] = sol['lam_x']
         self.__args['lam_g0'] = sol['lam_g']
 
-        return sol['f'], self.__vars.dictize(sol['x'])
+        res = self.__vars.dictize(sol['x'])
+        res.update(params)
+        return sol['f'], res
 
     def build_cost_fn(self, robot):
         st = robot.get_step_args()
@@ -81,7 +77,7 @@ class MPC:
         #self.add_max_force_constraint(self.robots[mode].force_sym(self.vars['q_' + mode][:self.nq, 0]), self.vars['q_' + mode][:self.nq, 0])
 
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
-        prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize())
+        prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize_attr())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
         self.solver = ca.nlpsol('solver', 'ipopt', prob, self.ipopt_options)
 
@@ -96,26 +92,26 @@ class MPC:
 
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
-        self.std = 0.1*np.ones((self.nu, self.H))
+        self.std = 1*np.ones((self.nu, self.H))
         for r in self.robots.values():
             r.build_rollout(self.mpc_params['H'], self.mpc_params['num_samples'])
 
-    def icem_warmstart(self, params):
-        res = self.icem_solve(params)
-        self.__args['x0'] = self.__vars.vectorize(res)
-        print(self.__vars.vectorize(res))
+    def icem_warmstart(self, params, num_iter = None):
+        if num_iter: self.mpc_params['num_iter'] = num_iter
+        #res = self.__vars.dictize(self.__args['x0'])
+        #self.mu = res['imp_rest'].full()
+        _, res = self.icem_solve(params)
+        self.__args['x0'] = self.__vars.vectorize_dict(d = res)
                     
     def icem_solve(self, params):
         """ Solve from initial state xi0 for """
         r = self.robots['free']
-        args= dict(xi0 = r.get_statevec({'free/'+k:v for k,v in params.items()}),
+        args= dict(xi0 = r.get_statevec({r.name+k:v for k,v in params.items()}),
                    M_inv = r.inv_mass_fn(params['q']),
                    imp_stiff=params['imp_stiff'])
-        u_traj = ca.DM.zeros((self.nu, self.H*self.mpc_params['num_samples']))
         elite_samples = powerlaw_psd_gaussian(self.mpc_params['beta'],
                                         size=(self.nu, self.mpc_params['num_elites'], self.H))
         ns = self.mpc_params['num_samples']-self.mpc_params['num_elites']
-        samples = np.empty((self.nu, ns, self.H))
         lb, ub = r._u.get_vectors('lb', 'ub')
         lb = lb.full()
         ub = ub.full()
@@ -131,10 +127,10 @@ class MPC:
             elite_indices = np.argsort(cost)[0, :self.mpc_params['num_elites']]
             elite_samples = samples[:, elite_indices, :]
             new_mu  = np.mean(elite_samples, axis = 1)
-            new_std = np.std(elite_samples, axis = 1)
-            self.mu  = self.mpc_params['alpha']*self.mu  + (1-self.mpc_params['alpha'])*new_mu
-            self.std = self.mpc_params['alpha']*self.std + (1-self.mpc_params['alpha'])*new_std
+            new_std = np.var(elite_samples, axis = 1)
             
+            self.mu  = self.mpc_params['alpha_mu']*self.mu  + (1-self.mpc_params['alpha_mu'])*new_mu
+            self.std = self.mpc_params['alpha_std']*self.std + (1-self.mpc_params['alpha_std'])*new_std
         best_cost = cost[elite_indices[0]]
         best_sample = samples[:, elite_indices[0], :]
         best_u = np.clip(best_sample*self.std + self.mu, lb, ub)
@@ -142,6 +138,6 @@ class MPC:
         res = r.get_inputdict(best_u)
         for rob in self.robots.values():
             best_xi = rob.rollout_xi(**args)['xi']
-            res.update(rob.get_statedict(best_xi))     
-        res.update(params)
+            res.update(rob.get_statedict(best_xi))
+        res.update({k:v for k,v in params.items() if not k in ['q', 'dq']})
         return best_cost, res

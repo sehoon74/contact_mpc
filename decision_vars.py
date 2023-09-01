@@ -73,14 +73,17 @@ class DecisionVarDict(dict):
         for key in self.keys():
             s += f"  {key}: {self.get(key)}, shape: {self.get(key).shape}\n"
         return s
-    
-    def vectorize(self, attr = None, d = {}):
-        """ Turns dictionary d or attribute attr into vector """
-        if not d:
-            d = self.get_vars(attr)
+
+    def vectorize_dict(self, d):
         for k in d.keys():
             if type(d[k]) == float: d[k] = ca.DM(d[k])
         return ca.vertcat(*[d[k].reshape((-1,1)) for k in self.keys()])
+    
+    def vectorize_attr(self, attr = None):
+        """ Turns dictionary d or attribute attr into vector """
+        d = self.get_vars(attr)
+        return self.vectorize_dict(d)
+        
 
     def dictize(self, vec):
         """ Returns a dict of vec, with reshaping as needed """
@@ -97,7 +100,7 @@ class DecisionVarDict(dict):
            
     def get_vectors(self, *attr_names):
         """ Returns a tuple of vectorized attributes """
-        return tuple([self.vectorize(attr) for attr in attr_names])
+        return tuple([self.vectorize_attr(attr) for attr in attr_names])
     
     def get_vars(self, attr = None):
         """ Returns a dict of attr, none returns symbolic """
@@ -118,9 +121,9 @@ class DecisionVarDict(dict):
     
     def clone_and_vectorize(self, new_vector_name):
         """ Creates a new dec var set with a single vector for the set """
-        attrs = {attr:{new_vector_name:self.vectorize(attr)} for attr in self.attr_names+['init']}
+        attrs = {attr:{new_vector_name:self.vectorize_attr(attr)} for attr in self.attr_names+['init']}
         dec_vars = self.clone_from_attrs(**attrs)
-        dec_vars[new_vector_name] = self.vectorize() # want exactly the same sym vars
+        dec_vars[new_vector_name] = self.vectorize_attr() # want exactly the same sym vars
         return dec_vars
 
 class ParamDict(DecisionVarDict):

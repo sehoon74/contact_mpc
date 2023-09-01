@@ -152,7 +152,7 @@ class Robot(DynSys):
                                     ['xi', 'u', *param_args.keys()],
                                     ['xi', 'cost']).expand()
 
-    def build_rollout(self, H, num_particles = 20):
+    def build_rollout(self, H, num_particles):
         """ Builds a rollout from an initial state size x0[nx] and input trajectory size u_traj = [nu, H, num_particles]
             to a total cost """
         xi0 = ca.SX.sym('xi', self.nx)
@@ -166,8 +166,10 @@ class Robot(DynSys):
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'])
         self.rollout_map = self.rollout.map(num_particles)
-        self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()], [res['xi']],
-                                              ['xi0', 'u_traj', *par.keys()], ['xi'])
+        
+        self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()],
+                                                 [ca.horzcat(xi0, res['xi'][:,:-1])],
+                                                 ['xi0', 'u_traj', *par.keys()], ['xi'])
 
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
@@ -181,10 +183,13 @@ class Robot(DynSys):
         return self.dictize_state(xi=vec)
 
     def get_statevec(self, d):
-        return self._state.vectorize(d=d)
+        return self._state.vectorize_dict(d=d)
 
     def get_inputdict(self, vec):
         return self.dictize_input(u=vec)
+
+    def get_inputvec(self, d):
+        return self._input.vectorize_dict(d=d)
     
     def get_ext_state(self, st):
         """ Produce all values which are derived from state.
@@ -208,7 +213,7 @@ class LinearizedRobot(Robot):
         attrs = kwargs['attrs']
         assert ['meas_noise', 'proc_noise', 'cov_init'] <= list(attrs.keys()), f"Need measurement + process noise to support EKF, have {attrs.keys()}"
 
-        self.proc_noise = ca.diag(self._state.vectorize(attr='proc_noise'))
+        self.proc_noise = ca.diag(self._state.vectorize_attr(attr='proc_noise'))
         self.meas_noise = ca.diag(ca.vertcat(attrs['meas_noise']['q']*ca.DM.ones(self.nq),
                                              attrs['meas_noise']['tau_ext']*ca.DM.ones(self.nq)))
 

@@ -95,6 +95,7 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
     modes_mpc = {}
     for mode in contact_params.get('modes'):
         modes_mpc[mode] = Robot(robot_params['urdf_path'],
+                                visc_fric = robot_params['visc_fric'],
                                 attrs = attrs,
                                 name = mode+"/",
                                 ctrl = imp,

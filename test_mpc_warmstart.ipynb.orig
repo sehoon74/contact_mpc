@@ -3,6 +3,10 @@
   {
    "cell_type": "code",
    "execution_count": 1,
+<<<<<<< HEAD
+   "id": "07ae385c",
+=======
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
    "metadata": {},
    "outputs": [],
    "source": [
@@ -39,15 +43,25 @@
   },
   {
    "cell_type": "code",
+<<<<<<< HEAD
+   "execution_count": 9,
+   "id": "f3f12a46",
+=======
    "execution_count": 2,
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
    "metadata": {},
    "outputs": [
     {
      "name": "stdout",
      "output_type": "stream",
      "text": [
+<<<<<<< HEAD
+      "dict_keys(['free/q', 'free/dq', 'M_inv', 'imp_stiff', 'imp_rest'])\n",
+      "dict_keys(['point/q', 'point/dq', 'M_inv', 'imp_stiff', 'imp_rest'])\n",
+=======
       "dict_keys(['imp_rest'])\n",
       "dict_keys(['imp_stiff'])\n",
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
       "(DM([0.303464, 0.181424, 0.81216]), DM(\n",
       "[[0.538923, -0.0407249, -0.84137], \n",
       " [0.774634, 0.416345, 0.476024], \n",
@@ -60,7 +74,11 @@
        "DM([-17.3224, 0, 0])"
       ]
      },
+<<<<<<< HEAD
+     "execution_count": 9,
+=======
      "execution_count": 2,
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
      "metadata": {},
      "output_type": "execute_result"
     }
@@ -82,24 +100,49 @@
   },
   {
    "cell_type": "code",
+<<<<<<< HEAD
+   "execution_count": 13,
+   "id": "7623edcb",
+=======
    "execution_count": 3,
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
    "metadata": {
     "scrolled": true
    },
    "outputs": [
     {
+<<<<<<< HEAD
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "dict_keys(['free/q', 'free/dq', 'M_inv', 'imp_stiff', 'imp_rest'])\n"
+     ]
+    },
+    {
+     "ename": "KeyError",
+     "evalue": "'free/M_inv'",
+=======
      "ename": "KeyError",
      "evalue": "'tau_input'",
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
      "output_type": "error",
      "traceback": [
       "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
       "\u001b[0;31mKeyError\u001b[0m                                  Traceback (most recent call last)",
+<<<<<<< HEAD
+      "Input \u001b[0;32mIn [13]\u001b[0m, in \u001b[0;36m<cell line: 15>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     10\u001b[0m ipopt_options[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mprint_time\u001b[39m\u001b[38;5;124m'\u001b[39m] \u001b[38;5;241m=\u001b[39m \u001b[38;5;28;01mTrue\u001b[39;00m\n\u001b[1;32m     11\u001b[0m ipopt_options[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mipopt.print_level\u001b[39m\u001b[38;5;124m'\u001b[39m] \u001b[38;5;241m=\u001b[39m \u001b[38;5;241m5\u001b[39m\n\u001b[0;32m---> 15\u001b[0m mpc \u001b[38;5;241m=\u001b[39m \u001b[43mMPC\u001b[49m\u001b[43m(\u001b[49m\u001b[43mrobots\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mmpc_params\u001b[49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[43mmpc_params\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mipopt_options\u001b[49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[43mipopt_options\u001b[49m\u001b[43m)\u001b[49m\n\u001b[1;32m     16\u001b[0m params \u001b[38;5;241m=\u001b[39m {\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mq\u001b[39m\u001b[38;5;124m'\u001b[39m: q0,\n\u001b[1;32m     17\u001b[0m           \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mdq\u001b[39m\u001b[38;5;124m'\u001b[39m: dq0,\n\u001b[1;32m     18\u001b[0m           \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mbelief_free\u001b[39m\u001b[38;5;124m'\u001b[39m:\u001b[38;5;241m1.0\u001b[39m,\n\u001b[1;32m     19\u001b[0m           \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mbelief_point\u001b[39m\u001b[38;5;124m'\u001b[39m:\u001b[38;5;241m0.0\u001b[39m,\n\u001b[1;32m     20\u001b[0m           \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mimp_stiff\u001b[39m\u001b[38;5;124m'\u001b[39m:\u001b[38;5;241m400\u001b[39m\u001b[38;5;241m*\u001b[39mca\u001b[38;5;241m.\u001b[39mDM\u001b[38;5;241m.\u001b[39mones(\u001b[38;5;241m3\u001b[39m),}\n\u001b[1;32m     22\u001b[0m t_mpc_free_cold, cost, res \u001b[38;5;241m=\u001b[39m timed_exec(mpc\u001b[38;5;241m.\u001b[39msolve, params)\n",
+      "File \u001b[0;32m~/mpc-contact/mpc.py:16\u001b[0m, in \u001b[0;36mMPC.__init__\u001b[0;34m(self, robots, mpc_params, ipopt_options, icem)\u001b[0m\n\u001b[1;32m     14\u001b[0m \u001b[38;5;28;01mfor\u001b[39;00m r \u001b[38;5;129;01min\u001b[39;00m robots\u001b[38;5;241m.\u001b[39mvalues():\n\u001b[1;32m     15\u001b[0m     cost_fn \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mbuild_cost_fn(r, mpc_params)\n\u001b[0;32m---> 16\u001b[0m     \u001b[43mr\u001b[49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43mbuild_step\u001b[49m\u001b[43m(\u001b[49m\u001b[43mstep_size\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[43m \u001b[49m\u001b[43mmpc_params\u001b[49m\u001b[43m[\u001b[49m\u001b[38;5;124;43m'\u001b[39;49m\u001b[38;5;124;43mdt\u001b[39;49m\u001b[38;5;124;43m'\u001b[39;49m\u001b[43m]\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mcost_fn\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[43m \u001b[49m\u001b[43mcost_fn\u001b[49m\u001b[43m)\u001b[49m\n\u001b[1;32m     18\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mH  \u001b[38;5;241m=\u001b[39m mpc_params[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mH\u001b[39m\u001b[38;5;124m'\u001b[39m]   \u001b[38;5;66;03m# number of mpc steps\u001b[39;00m\n\u001b[1;32m     19\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mnu \u001b[38;5;241m=\u001b[39m robots[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mfree\u001b[39m\u001b[38;5;124m'\u001b[39m]\u001b[38;5;241m.\u001b[39mnu\n",
+      "File \u001b[0;32m~/mpc-contact/robot.py:131\u001b[0m, in \u001b[0;36mRobot.build_step\u001b[0;34m(self, step_size, cost_fn)\u001b[0m\n\u001b[1;32m    128\u001b[0m cost \u001b[38;5;241m=\u001b[39m cost_fn\u001b[38;5;241m.\u001b[39mcall(inp_args)[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mcost\u001b[39m\u001b[38;5;124m'\u001b[39m] \u001b[38;5;28;01mif\u001b[39;00m cost_fn \u001b[38;5;28;01melse\u001b[39;00m \u001b[38;5;241m0\u001b[39m          \u001b[38;5;66;03m# Cost for the current step\u001b[39;00m\n\u001b[1;32m    130\u001b[0m \u001b[38;5;66;03m# Joint acceleration, then integrate\u001b[39;00m\n\u001b[0;32m--> 131\u001b[0m ddq \u001b[38;5;241m=\u001b[39m \u001b[43minp_args\u001b[49m\u001b[43m[\u001b[49m\u001b[38;5;124;43m'\u001b[39;49m\u001b[38;5;124;43mM_inv\u001b[39;49m\u001b[38;5;124;43m'\u001b[39;49m\u001b[43m]\u001b[49m\u001b[38;5;241m@\u001b[39m(\u001b[38;5;241m-\u001b[39m\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mvisc_fric\u001b[38;5;129m@dq\u001b[39m \u001b[38;5;241m+\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mtau_ext \u001b[38;5;241m+\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_input[\u001b[38;5;124m'\u001b[39m\u001b[38;5;124mtau_input\u001b[39m\u001b[38;5;124m'\u001b[39m])\n\u001b[1;32m    132\u001b[0m dq_next \u001b[38;5;241m=\u001b[39m dq \u001b[38;5;241m+\u001b[39m step_size\u001b[38;5;241m*\u001b[39mddq\n\u001b[1;32m    133\u001b[0m q_next \u001b[38;5;241m=\u001b[39m q \u001b[38;5;241m+\u001b[39m step_size\u001b[38;5;241m*\u001b[39mdq_next\n",
+      "File \u001b[0;32m~/mpc-contact/decision_vars.py:163\u001b[0m, in \u001b[0;36mNamedDict.__getitem__\u001b[0;34m(self, k)\u001b[0m\n\u001b[1;32m    162\u001b[0m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21m__getitem__\u001b[39m(\u001b[38;5;28mself\u001b[39m, k):\n\u001b[0;32m--> 163\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28;43msuper\u001b[39;49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[38;5;21;43m__getitem__\u001b[39;49m\u001b[43m(\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43mname\u001b[49m\u001b[38;5;241;43m+\u001b[39;49m\u001b[43mk\u001b[49m\u001b[43m)\u001b[49m\n",
+      "\u001b[0;31mKeyError\u001b[0m: 'free/M_inv'"
+=======
       "\u001b[0;32m<ipython-input-3-5c9348b304de>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[1;32m     13\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     14\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 15\u001b[0;31m \u001b[0mmpc\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mMPC\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mrobots\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmpc_params\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mmpc_params\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mipopt_options\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mipopt_options\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     16\u001b[0m params = {'q': q0,\n\u001b[1;32m     17\u001b[0m           \u001b[0;34m'dq'\u001b[0m\u001b[0;34m:\u001b[0m \u001b[0mdq0\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
       "\u001b[0;32m~/hanikevi/mpc_intro/mpc.py\u001b[0m in \u001b[0;36m__init__\u001b[0;34m(self, robots, mpc_params, ipopt_options, icem)\u001b[0m\n\u001b[1;32m     14\u001b[0m         \u001b[0;32mfor\u001b[0m \u001b[0mr\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mrobots\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mvalues\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     15\u001b[0m             \u001b[0mcost_fn\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbuild_cost_fn\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mr\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmpc_params\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 16\u001b[0;31m             \u001b[0mr\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mbuild_step\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mstep_size\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mmpc_params\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'dt'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcost_fn\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcost_fn\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     17\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     18\u001b[0m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mH\u001b[0m  \u001b[0;34m=\u001b[0m \u001b[0mmpc_params\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'H'\u001b[0m\u001b[0;34m]\u001b[0m   \u001b[0;31m# number of mpc steps\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
       "\u001b[0;32m~/hanikevi/mpc_intro/robot.py\u001b[0m in \u001b[0;36mbuild_step\u001b[0;34m(self, step_size, cost_fn)\u001b[0m\n\u001b[1;32m    131\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    132\u001b[0m         \u001b[0;31m# Joint acceleration, then integrate\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 133\u001b[0;31m         \u001b[0mddq\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0minp_args\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'M_inv'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m@\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m-\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mvisc_fric\u001b[0m\u001b[0;34m@\u001b[0m\u001b[0mdq\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtau_ext\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_input\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'tau_input'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    134\u001b[0m         \u001b[0mdq_next\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdq\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0mstep_size\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0mddq\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    135\u001b[0m         \u001b[0mq_next\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mq\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0mstep_size\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0mdq_next\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
       "\u001b[0;32m~/hanikevi/mpc_intro/decision_vars.py\u001b[0m in \u001b[0;36m__getitem__\u001b[0;34m(self, key)\u001b[0m\n\u001b[1;32m     62\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     63\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0m__getitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mkey\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 64\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__vars\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'sym'\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mkey\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     65\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     66\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0mget\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mnamed_key\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
       "\u001b[0;32m~/hanikevi/mpc_intro/decision_vars.py\u001b[0m in \u001b[0;36m__getitem__\u001b[0;34m(self, k)\u001b[0m\n\u001b[1;32m    160\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    161\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0m__getitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mk\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 162\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0msuper\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__getitem__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mname\u001b[0m\u001b[0;34m+\u001b[0m\u001b[0mk\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
       "\u001b[0;31mKeyError\u001b[0m: 'tau_input'"
+>>>>>>> 6109e50b98c68a47631cce305ca9ed3bfa70e1ef
      ]
     }
    ],

@@ -49,6 +49,11 @@ class MPC:
         cost += ca.sumsqr(ext_st['p'] - self.mpc_params['des_pose'])
         cost += self.mpc_params['vel_cost']*ca.sumsqr(ext_st['dx'])
         cost += self.mpc_params['imp_cost']*ca.sumsqr(ext_st['p']-st['imp_rest'])
+
+        for k in ext_st:
+            if 'contact' in k and k[-1] == 'F':
+                print(f'Adding contact setpoint cost for {k}')
+#                cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
         st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
         return st_cost
     
@@ -56,7 +61,7 @@ class MPC:
         self.__pars = ParamDict(params0)
 
         J = 0
-        g = []
+        self.g = []
         self.__vars = DecisionVarDict(attr_names = ['lb', 'ub'])
         self.__vars += self.robots['free'].get_input(self.H)
 
@@ -68,39 +73,43 @@ class MPC:
             traj, cost, cont_const = rollout(rob, self.H, xi0, **step_inputs)
             self.__vars += traj
             J += self.__pars['belief_'+name]*cost
-            g += cont_const
+            self.g += cont_const
 
-        self.g = ca.vertcat(*g)
-        self.lbg = ca.DM.zeros(self.g.shape[0])
-        self.ubg = ca.DM.zeros(self.g.shape[0])
+        self.g = [ca.vertcat(*self.g)]
+        self.lbg = [ca.DM.zeros(self.g[0].shape[0])]
+        self.ubg = [ca.DM.zeros(self.g[0].shape[0])]
+
+        #self.add_imp_force_const()
+
+        self.g = ca.vertcat(*self.g)
+        self.lbg = ca.vertcat(*self.lbg)
+        self.ubg = ca.vertcat(*self.ubg)
         
-        #self.add_max_force_constraint(self.robots[mode].force_sym(self.vars['q_' + mode][:self.nq, 0]), self.vars['q_' + mode][:self.nq, 0])
-
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
         prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize_attr())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
         self.solver = ca.nlpsol('solver', 'ipopt', prob, self.ipopt_options)
 
-    def add_max_force_constraint(self, tau_ext, q):
-        H = self.H
-        p_inv_jac = self.pinv_jac(q)
-        F_ext = p_inv_jac @ tau_ext
-
-        self.g += [ca.reshape(F_ext[2], 1, 1)]
-        self.lbg += [-30] * 1
-        self.ubg += [np.inf] * 1
-
+    def add_imp_force_const(self):
+        args = self.__vars.get_vars()
+        args.update(self.__pars.get_vars())
+        ext_st = self.robots['free'].get_ext_state(args)
+        for i in range(self.H):
+            self.g += [ca.sumsqr(ext_st['F_imp'][:,i])]
+        self.lbg += [0]*self.H
+        self.ubg += [self.mpc_params['max_imp_force']**2]*self.H
+        
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
-        self.std = 1*np.ones((self.nu, self.H))
+        self.std = 0.5*np.ones((self.nu, self.H))
         for r in self.robots.values():
             r.build_rollout(self.mpc_params['H'], self.mpc_params['num_samples'])
 
     def icem_warmstart(self, params, num_iter = None):
-        if num_iter: self.mpc_params['num_iter'] = num_iter
-        #res = self.__vars.dictize(self.__args['x0'])
+        if num_iter is not None: self.mpc_params['num_iter'] = num_iter
+        res = self.__vars.dictize(self.__args['x0']) # seemed to be hurting somehow?
         #self.mu = res['imp_rest'].full()
-        _, res = self.icem_solve(params)
+        #_, res = self.icem_solve(params)
         self.__args['x0'] = self.__vars.vectorize_dict(d = res)
                     
     def icem_solve(self, params):

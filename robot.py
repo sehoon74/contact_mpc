@@ -132,12 +132,12 @@ class Robot(DynSys):
         
         self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the __subsys
 
-        cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step
-        
         # Joint acceleration, then integrate
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self.tau_input)
         dq_next = dq + step_size*ddq
         q_next = q + step_size*dq_next
+
+        cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step     
 
         # Build dictionary step function
         self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],

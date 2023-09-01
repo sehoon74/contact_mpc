@@ -4,7 +4,7 @@ modes:
   free: []
   point: [contact_1]
 models:
-  contact_1:
+  contact_1: # prefix all contacts with contact if they should be found by MPC solver in cost fn
     pos: [0, 0, 0]
-    stiff: [1e2, 0, 0]
-    rest: [-0.300, 0.180, 0.816]
+    stiff: [1e3, 0, 0]
+    rest: [0.300, 0.180, 0.816]

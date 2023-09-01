@@ -22,7 +22,7 @@ class Contact(DynSys):
     def __init__(self, name:str, pars:dict, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.name = name
-        self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})        
+        self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})     
         self.build_vars(sym_vars, name, attrs)
         self.build_contact()   
     
@@ -53,11 +53,10 @@ class Contact(DynSys):
         F = ca.times(self._pars['stiff'],(self._pars['rest']-x)) # Forces in world coord
 
         self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self._state),
-                                ['p', 'R', *self._state.keys()],
-                                ['F'])
+                                ['p', 'R', *self._state.keys()], ['F'])
 
         fn_dict = dict(p=p, R=R, **self._state)
-        fn_output = NamedDict(self.name, dict(x=x, disp=disp, n=n, F=F))
+        fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F})
         fn_dict.update(fn_output)
         self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
                                              ['p', 'R', *self._state.keys()],
@@ -67,4 +66,3 @@ class Contact(DynSys):
     def get_force(self, args):
         filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self._state.keys())}
         return self.__F_fn(**filtered_args)['F']
-    

@@ -103,21 +103,10 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
 
 def mult_shoot_rollout(sys, H, xi0, **step_inputs):
     name = sys.name
-    print(name)
     state = sys.get_state(H)
-    res = sys.step(q=state['q'], dq=state['dq'], **step_inputs)
+    res = sys.step(**state, **step_inputs)
     continuity_constraints = []
     for st in ['q', 'dq']:
         continuity_constraints += [state[name+st][:, 0] - xi0[st]]
         continuity_constraints += [ca.reshape(res[st][:, :-1] - state[name+st][:, 1:], -1, 1)]
     return state, ca.sum2(res['cost']), continuity_constraints
-
-def singleshoot_rollout(sys, H, x0, inp_traj, **step_inputs):
-    step_inputs['xi'] = x0
-    cost = 0
-    for h in range(H):
-        step_inputs['imp_rest'] = inp_traj[:,h]
-        res = sys.step_vec(**step_inputs, **res)
-        cost += res.pop['cost']
-        step_inputs.update(res)
-    return cost

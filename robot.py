@@ -4,6 +4,9 @@ import pinocchio.casadi as cpin
 
 from decision_vars import *
 
+#jit_options = {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+jit_options = {}
+
 class DynSys():
     """ Minimal, abstract class to standardize interfaces """
     def __init__(self):
@@ -70,7 +73,7 @@ class Robot(DynSys):
 
         # Inverse mass is a parameter to step to allow us to calculate M_inv once and use multiple times
         self._param = ParamDict(dict(M_inv = ca.DM.zeros(self.nq, self.nq)))
-                
+
     def build_fwd_kin(self):
         """ This builds fwd kinematics, Jacobian matrix, and pseudoinv to the ee_frame_name
             as CasADi fns over _state['q'], _state['dq'] """
@@ -82,7 +85,7 @@ class Robot(DynSys):
 
         self.jac = ca.Function('jacobian', [q], [J], ['q'], ['Jac'])
         self.jacpinv = ca.Function('jacpinv', [q], [ca.pinv(J.T)], ['q'], ['pinv'])
-        self.tcp_motion = ca.Function('tcp_motion', [q, dq], [x_ee[0], J@dq], ['q', 'dq'], ['x', 'dx'])                 
+        self.tcp_motion = ca.Function('tcp_motion', [q, dq], [x_ee[0], J@dq], ['q', 'dq'], ['x', 'dx'])
 
     def add_subsys_and_ctrl(self):
         """ Add the variables from subsystems and control to the _state and _input sets """
@@ -110,8 +113,8 @@ class Robot(DynSys):
 
         inp = self._input.get_vars()
         self.dictize_input = ca.Function('dictize_input', [self._u['u']], [*inp.values()], ['u'], [*inp.keys()])
-        
-        
+
+
     def build_inv_mass(self, step_size:float):
         """ Build a function for the inverse mass so it's easily accessed
             IN: step_size, time step length in seconds """
@@ -124,12 +127,12 @@ class Robot(DynSys):
         """ Build the dynamic update equation with mass as input
             IN: step_size, time step length in seconds """
         self.build_inv_mass(step_size)
-        
+
         # Shorthand
         q  = self._state.get_from_shortname('q')
         dq = self._state.get_from_shortname('dq')
         inp_args = self.get_step_args()
-        
+
         self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the __subsys
 
         # Joint acceleration, then integrate
@@ -137,11 +140,11 @@ class Robot(DynSys):
         dq_next = dq + step_size*ddq
         q_next = q + step_size*dq_next
 
-        cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step     
+        cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step
 
         # Build dictionary step function
         self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],
-                                        inp_args.keys(), ['q', 'dq', 'cost']).expand()
+                                        inp_args.keys(), ['q', 'dq', 'cost'], jit_options).expand()
 
         # Build vectorized step function
         param_args = self._param.get_vars()
@@ -150,7 +153,8 @@ class Robot(DynSys):
                                     [self._xi['xi'], self._u['u'], *param_args.values()],
                                     [xi_next, cost],
                                     ['xi', 'u', *param_args.keys()],
-                                    ['xi', 'cost']).expand()
+                                    ['xi', 'cost'], jit_options).expand()
+        return self.step_vec
 
     def build_rollout(self, H, num_particles):
         """ Builds a rollout from an initial state size x0[nx] and input trajectory size u_traj = [nu, H, num_particles]
@@ -164,8 +168,8 @@ class Robot(DynSys):
         res = step_ma(xi=xi0, u=u, **par)
         cost = ca.sum2(res['cost'])
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
-                                              ['xi0', 'u_traj', *par.keys()], ['cost'])
-        self.rollout_map = self.rollout.map(num_particles)
+                                              ['xi0', 'u_traj', *par.keys()], ['cost'], jit_options)
+        self.rollout_map = self.rollout.map(num_particles, "thread", 16) 
         
         self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()],
                                                  [ca.horzcat(xi0, res['xi'][:,:-1])],

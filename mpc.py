@@ -13,7 +13,7 @@ class MPC:
 
         self.mpc_params = mpc_params
         self.ipopt_options = ipopt_options
-        
+
         for r in robots.values():
             cost_fn = self.build_cost_fn(r)
             r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn)
@@ -23,7 +23,14 @@ class MPC:
 
         self.icem = icem
         if icem: self.icem_init(mpc_params)
-        
+        for r in self.robots.values():
+            r.build_rollout(self.mpc_params['H'], self.mpc_params['num_samples'])
+
+    def reset_warmstart(self):
+        for arg in ['x0', 'lam_x0', 'lam_g0']:
+            self.__args[arg] = ca.DM.zeros(self.__args[arg].shape)
+        self.icem_init()
+
     def solve(self, params):
         r = self.robots['free']
         params['M_inv'] = r.inv_mass_fn(params['q'])
@@ -52,11 +59,11 @@ class MPC:
 
         for k in ext_st:
             if 'contact' in k and k[-1] == 'F':
-                print(f'Adding contact setpoint cost for {k}')
+#                print(f'Adding contact setpoint cost for {k}')
 #                cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
         st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
         return st_cost
-    
+
     def build_solver(self, params0):
         self.__pars = ParamDict(params0)
 
@@ -102,8 +109,6 @@ class MPC:
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
         self.std = 0.5*np.ones((self.nu, self.H))
-        for r in self.robots.values():
-            r.build_rollout(self.mpc_params['H'], self.mpc_params['num_samples'])
 
     def icem_warmstart(self, params, num_iter = None):
         if num_iter is not None: self.mpc_params['num_iter'] = num_iter

@@ -23,7 +23,7 @@ class ContactMPC():
     def __init__(self, config_path, est_pars = [], sim = False):
         self.mpc_params = yaml_load(config_path+'mpc_params.yaml')
         self.ipopt_options = yaml_load(config_path+'ipopt_options.yaml')
-       
+
         self.tf_buffer = tf.Buffer()
         self.tf_listener = tf.TransformListener(self.tf_buffer)
 
@@ -33,26 +33,26 @@ class ContactMPC():
         self.F_pub = rospy.Publisher('est_force', JointState, queue_size=1)
         self.tcp_pub = rospy.Publisher('tcp_pos', JointState, queue_size=1)
         self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
-        
+
         robots_obs, robots_mpc, self.contacts = spawn_models(robot_path = config_path+"franka.yaml",
                                                   attr_path  = config_path+"attrs.yaml", 
                                                   contact_path = config_path+"contact.yaml",
-                                                  sym_vars = est_pars)        
+                                                  sym_vars = est_pars)
         self.nq = robots_obs['free'].nq
 
         self.observer = EKF_bank(robots_obs, step_size = 1.0/250.0 )
-            
+
         self.contact_env_pub = {c:rospy.Publisher(c+'/env', PoseStamped, queue_size=1) for c in self.contacts}
         self.contact_rob_pub = {c:rospy.Publisher(c+'/rob', PoseStamped, queue_size=1) for c in self.contacts}
-        
+
         # Set up robot state and MPC state
         self.rob_state = {'imp_stiff':None}
-        self.rob_state.update(self.observer.get_statedict())    
+        self.rob_state.update(self.observer.get_statedict())
         if sim:
             self.rob_state['imp_stiff'] = np.array([200, 200, 200])
         else:
             self.par_client = dynamic_reconfigure.client.Client( "/cartesian_impedance_example_controller/dynamic_reconfigure_compliance_param_node")
-            
+
         self.init_orientation = self.tf_buffer.lookup_transform('panda_link0', 'panda_EE', rospy.Time(0),
                                                                 rospy.Duration(1)).transform.rotation
         # Set up MPC
@@ -69,7 +69,7 @@ class ContactMPC():
         if hasattr(self, 'observer'):
             self.observer.step(q_meas = q_m, tau_meas = tau_m)
             self.publish_observer()
-        
+
     def publish_contacts(self):
         for contact in self.contacts:
             msg_env = build_env_stiff(contact['rest'],contact['stiff'])

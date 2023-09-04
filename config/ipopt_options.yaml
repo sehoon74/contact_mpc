@@ -22,7 +22,8 @@ ipopt.mu_oracle: probing
 #ipopt.mu_strategy: monotone
 #ipopt.mu_init: 0.1
 
-ipopt.linear_solver: 'MUMPS' #'MUMPS' or 'MA86'
+#ipopt.linear_solver: 'MUMPS' #'MUMPS' or 'MA86'
+ipopt.linear_solver: 'MA27' #'MUMPS' or 'MA86'
 ipopt.ma57_automatic_scaling: 'no'
 
 ipopt.warm_start_bound_frac: 1.0e-08

@@ -10,10 +10,12 @@ max_imp_force: 100
 force_cost: 5e-4
 force_setpoint: -15
 
+jit: false
+
 # ICEM params
-alpha_mu: 0.9   # tuning parameter for distribution smoothing over time
+alpha_mu: 0.9  # tuning parameter for distribution smoothing over time
 alpha_std: 0.5
 beta: 4.0       # noise tuning parameter
 num_samples: 80 # number of samples for action trajectories --> same of number of filter particles
-num_iter: 40    # number of iterations 
-num_elites: 8   # number of elites to maintain
+num_iter: 120    # number of iterations 
+num_elites: 16  # number of elites to maintain

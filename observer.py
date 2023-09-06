@@ -5,13 +5,14 @@ from scipy.stats import multivariate_normal
 
 sym = ca.SX.sym
 # ~3x speedup from JIT
-jit_opts = {}#{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+jit_opts = {} #{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
 
 def build_step_fn(robot):
     # Build a static KF update w arguments of mu, sigma, tau and measured q
     mu, proc_noise, meas_noise= robot.get_ekf_info()
     
     M_inv = sym('M_inv', robot.nq, robot.nq)
+    
     A, C, mu_next, y = robot.linearized(mu, ca.DM.zeros(robot.nq), M_inv)  # get linearized state and observation matrices wrt states
 
     tau_meas = sym('tau_meas', robot.nq)
@@ -26,12 +27,13 @@ def build_step_fn(robot):
     [Q, R] = ca.qr(S_hat)  # QR decomposition for evaluating determinant efficiently
     det_S_t = ca.trace(R)  # determinant of original predicted measurement covariance is just the product of diagonal elements of R --> block triangular
     log_likelihood = -0.5 * (ca.log(det_S_t) + (y_meas - y).T@ca.inv(S_hat)@(y_meas - y) + robot.nq*ca.log(2*ca.pi))
-    
+    likelihood = det_S_t**(-1/2)*ca.exp(-0.5*ca.transpose(y_meas-y) @ ca.inv(S_hat) @ (y_meas-y))
+
     mu_next_corr = mu_next + L@(y_meas - y)
     cov_next_corr = (ca.SX.eye(robot.nx)-L@C)@cov_next # corrected covariance
     
     fn_dict = {'mu':mu, 'cov':cov, 'q_meas':q_meas, 'tau_meas':tau_meas, 'M_inv':M_inv,
-               'mu_next':mu_next_corr, 'cov_next':cov_next_corr, 'likelihood': log_likelihood,}
+               'mu_next':mu_next_corr, 'cov_next':cov_next_corr, 'likelihood': likelihood,}
     return ca.Function('ekf_step', fn_dict,
                        ['mu', 'cov', 'q_meas', 'tau_meas', 'M_inv'], # inputs to casadi function
                        ['mu_next', 'cov_next', 'likelihood'], jit_opts)
@@ -54,7 +56,6 @@ class EKF():
         else:
             self.x['M_inv'] = self.robot.inv_mass_fn(q_meas)
         res = self.step_fn.call(self.x)
-        
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
         self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
@@ -66,7 +67,6 @@ class EKF():
         d = self.robot._state.dictize(self.x['mu'])
         return self.robot.get_ext_state(d)
 
-
 class EKF_bank():
     def __init__(self, robots, step_size):
         self.ekfs = {k:EKF(v, step_size) for k,v in robots.items()}
@@ -77,7 +77,10 @@ class EKF_bank():
         for robot, ekf in self.ekfs.items():
             ekf.step(q_meas, tau_meas, M_inv)
             self.x['belief'][robot] = ekf.likelihood
-
+        likelihood_sum = sum(ekf.likelihood for ekf in self.ekfs.values())
+        for robot, ekf in self.ekfs.items():
+            self.x['belief'][robot] *= 1/likelihood_sum
+            
     def get_statedict(self):
         # Return the estimated state as dict, plus the belief
         d = {'belief_'+robot:self.x['belief'][robot] for robot in self.ekfs.keys()}

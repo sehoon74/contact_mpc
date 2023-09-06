@@ -3,11 +3,10 @@
 from robot import Robot
 import casadi as ca
 from decision_vars import *
-from helper_fns import mult_shoot_rollout as rollout
 from colorednoise import powerlaw_psd_gaussian
 
 class MPC:
-    def __init__(self, robots, mpc_params, ipopt_options = {}, icem = False):
+    def __init__(self, robots, params, mpc_params, ipopt_options = {}):
         assert 'free' in robots, "Need at least the free-space model w/ key: free!"
         self.robots = robots
 
@@ -16,18 +15,18 @@ class MPC:
 
         for r in robots.values():
             cost_fn = self.build_cost_fn(r)
-            r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn)
-
+            r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn, jit = mpc_params['jit'])
+            r.build_rollout(H = mpc_params['H'], num_samples = mpc_params['num_samples'], jit = mpc_params['jit'])
+            
         self.H  = mpc_params['H']   # number of mpc steps
         self.nu = robots['free'].nu
 
-        self.icem = icem
-        if icem: self.icem_init(mpc_params)
-        for r in self.robots.values():
-            r.build_rollout(self.mpc_params['H'], self.mpc_params['num_samples'])
-
+        self.build_solver(params)
+        self.icem_init()
+    
     def reset_warmstart(self):
         for arg in ['x0', 'lam_x0', 'lam_g0']:
+            if arg not in self.__args: continue
             self.__args[arg] = ca.DM.zeros(self.__args[arg].shape)
         self.icem_init()
 
@@ -35,11 +34,11 @@ class MPC:
         r = self.robots['free']
         params['M_inv'] = r.inv_mass_fn(params['q'])
 
-        if not hasattr(self, "solver"): self.build_solver(params)
-
         self.__args['p'] = self.__pars.vectorize_dict(d = params)
 
         sol = self.solver(**self.__args)
+        if not ca.DM.is_regular(sol['f']): # true if inf or nan
+            raise RuntimeError(f'Error solving MPC with: \n params {params} \n\n mpc params {self.mpc_params} \n\n ipopt {self.ipopt_options}')
 
         self.__args['x0'] = sol['x']
         self.__args['lam_x0'] = sol['lam_x']
@@ -59,12 +58,14 @@ class MPC:
 
         for k in ext_st:
             if 'contact' in k and k[-1] == 'F':
+                pass
 #                print(f'Adding contact setpoint cost for {k}')
 #                cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
         st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
         return st_cost
 
     def build_solver(self, params0):
+        params0['M_inv'] = self.robots['free'].inv_mass_fn(params0['q'])
         self.__pars = ParamDict(params0)
 
         J = 0
@@ -77,26 +78,23 @@ class MPC:
         step_inputs['M_inv'] = self.__pars['M_inv']
         xi0 = dict(q = params0['q'], dq = params0['dq'])
         for name, rob in self.robots.items():
-            traj, cost, cont_const = rollout(rob, self.H, xi0, **step_inputs)
+            traj, cost, cont_const = mult_shoot_rollout(rob, self.H, xi0, **step_inputs)
             self.__vars += traj
             J += self.__pars['belief_'+name]*cost
             self.g += cont_const
 
-        self.g = [ca.vertcat(*self.g)]
-        self.lbg = [ca.DM.zeros(self.g[0].shape[0])]
-        self.ubg = [ca.DM.zeros(self.g[0].shape[0])]
-
-        #self.add_imp_force_const()
-
         self.g = ca.vertcat(*self.g)
-        self.lbg = ca.vertcat(*self.lbg)
-        self.ubg = ca.vertcat(*self.ubg)
-        
+        self.lbg = ca.DM.zeros(self.g.shape[0])
+        self.ubg = ca.DM.zeros(self.g.shape[0])   
+            
+        #self.add_imp_force_const()
+     
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
+        
         prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize_attr())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
         self.solver = ca.nlpsol('solver', 'ipopt', prob, self.ipopt_options)
-
+        
     def add_imp_force_const(self):
         args = self.__vars.get_vars()
         args.update(self.__pars.get_vars())
@@ -108,15 +106,16 @@ class MPC:
         
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
-        self.std = 0.5*np.ones((self.nu, self.H))
+        self.std = 0.1*np.ones((self.nu, self.H))
 
     def icem_warmstart(self, params, num_iter = None):
         if num_iter is not None: self.mpc_params['num_iter'] = num_iter
         res = self.__vars.dictize(self.__args['x0']) # seemed to be hurting somehow?
-        #self.mu = res['imp_rest'].full()
-        #_, res = self.icem_solve(params)
+        self.mu = res['imp_rest'].full()
+        best_cost, res = self.icem_solve(params)
         self.__args['x0'] = self.__vars.vectorize_dict(d = res)
-                    
+        return best_cost, res 
+
     def icem_solve(self, params):
         """ Solve from initial state xi0 for """
         r = self.robots['free']
@@ -124,8 +123,9 @@ class MPC:
                    M_inv = r.inv_mass_fn(params['q']),
                    imp_stiff=params['imp_stiff'])
         elite_samples = powerlaw_psd_gaussian(self.mpc_params['beta'],
-                                        size=(self.nu, self.mpc_params['num_elites'], self.H))
-        ns = self.mpc_params['num_samples']-self.mpc_params['num_elites']
+                                        size=(self.nu, self.mpc_params['num_elites']-1, self.H))
+        elite_samples = np.append(np.zeros((self.nu, 1, self.H)), elite_samples, axis=1)
+        ns = self.mpc_params['num_samples']-self.mpc_params['num_elites'] # num new samples
         lb, ub = r._u.get_vectors('lb', 'ub')
         lb = lb.full()
         ub = ub.full()
@@ -155,3 +155,14 @@ class MPC:
             res.update(rob.get_statedict(best_xi))
         res.update({k:v for k,v in params.items() if not k in ['q', 'dq']})
         return best_cost, res
+
+    
+def mult_shoot_rollout(sys, H, xi0, **step_inputs):
+    name = sys.name
+    state = sys.get_state(H)
+    res = sys.step(**state, **step_inputs)
+    continuity_constraints = []
+    for st in ['q', 'dq']:
+        continuity_constraints += [state[name+st][:, 0] - xi0[st]]
+        continuity_constraints += [ca.reshape(res[st][:, :-1] - state[name+st][:, 1:], -1, 1)]
+    return state, ca.sum2(res['cost']), continuity_constraints

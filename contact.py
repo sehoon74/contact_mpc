@@ -56,7 +56,7 @@ class Contact(DynSys):
                                 ['p', 'R', *self._state.keys()], ['F'])
 
         fn_dict = dict(p=p, R=R, **self._state)
-        fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F})
+        fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F, 'rest':self._pars['rest']})
         fn_dict.update(fn_output)
         self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
                                              ['p', 'R', *self._state.keys()],

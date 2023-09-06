@@ -84,7 +84,6 @@ class DecisionVarDict(dict):
         d = self.get_vars(attr)
         return self.vectorize_dict(d)
         
-
     def dictize(self, vec):
         """ Returns a dict of vec, with reshaping as needed """
         d = {}

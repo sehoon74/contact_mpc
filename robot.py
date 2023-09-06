@@ -4,8 +4,6 @@ import pinocchio.casadi as cpin
 
 from decision_vars import *
 
-#jit_options = {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
-jit_options = {}
 
 class DynSys():
     """ Minimal, abstract class to standardize interfaces """
@@ -123,11 +121,12 @@ class Robot(DynSys):
         inv_mass = ca.inv(M+step_size*self.visc_fric)   # Semi-implicit inverse of mass matrix
         self.inv_mass_fn = ca.Function('inv_mass', [q], [inv_mass], ['q'], ['M_inv']).expand()
 
-    def build_step(self, step_size, cost_fn = None):
+    def build_step(self, step_size, cost_fn = None, jit = False):
         """ Build the dynamic update equation with mass as input
             IN: step_size, time step length in seconds """
         self.build_inv_mass(step_size)
-
+        jit_options = self.get_jit_opts(jit)
+        
         # Shorthand
         q  = self._state.get_from_shortname('q')
         dq = self._state.get_from_shortname('dq')
@@ -141,11 +140,14 @@ class Robot(DynSys):
         q_next = q + step_size*dq_next
 
         cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step
-
+        
         # Build dictionary step function
         self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],
                                         inp_args.keys(), ['q', 'dq', 'cost'], jit_options).expand()
 
+        self.tau_ext_fn = ca.Function('tau_ext', inp_args.values(), [self.tau_ext],
+                                        inp_args.keys(), ['tau_ext'])
+        
         # Build vectorized step function
         param_args = self._param.get_vars()
         xi_next = ca.vertcat(q_next, dq_next, self._xi['xi'][2*self.nq:])
@@ -154,11 +156,14 @@ class Robot(DynSys):
                                     [xi_next, cost],
                                     ['xi', 'u', *param_args.keys()],
                                     ['xi', 'cost'], jit_options).expand()
+
+        
         return self.step_vec
 
-    def build_rollout(self, H, num_particles):
-        """ Builds a rollout from an initial state size x0[nx] and input trajectory size u_traj = [nu, H, num_particles]
-            to a total cost """
+    def build_rollout(self, H, num_samples, jit = False):
+        """ Builds a rollout from an initial state size x0[nx] and input trajectory size
+              u_traj = [nu, H, num_particles] to a total cost """
+        jit_options = self.get_jit_opts(jit)
         xi0 = ca.SX.sym('xi', self.nx)
         u = self._u.clone_and_extend(H = H).get_vars()['u']
         par = self._param.get_vars()
@@ -169,12 +174,16 @@ class Robot(DynSys):
         cost = ca.sum2(res['cost'])
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'], jit_options)
-        self.rollout_map = self.rollout.map(num_particles, "thread", 16) 
+        self.rollout_map = self.rollout.map(num_samples, 'thread', 16)
         
         self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()],
                                                  [ca.horzcat(xi0, res['xi'][:,:-1])],
-                                                 ['xi0', 'u_traj', *par.keys()], ['xi'])
+                                                 ['xi0', 'u_traj', *par.keys()], ['xi'], jit_options)
 
+    def get_jit_opts(self, jit):
+        if jit: return {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+        else: return {}
+        
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
         arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
@@ -227,19 +236,20 @@ class LinearizedRobot(Robot):
         
     def build_linearized(self):
         inp_args = self._param.get_vars()
-        inp_args['u'] = self._u
-        inp_args['xi'] = self._xi
+        inp_args['u'] = self._u.get_vectors()
+        xi = self._xi.get_vars()['xi']
+        inp_args['xi'] = xi
         res = self.step_vec.call(inp_args)
         xi_next = res['xi']
         y = ca.vertcat(self._state['q'], self.tau_ext)
         u = self._input['tau_input']
-        A = ca.jacobian(xi_next, self._xi)
-        C = ca.jacobian(y, self._xi)
-        self.linearized = ca.Function('linearized', [self._xi, u, inp_args['M_inv'],], [A, C, xi_next, y],
+        A = ca.jacobian(xi_next, xi)
+        C = ca.jacobian(y, xi)
+        self.linearized = ca.Function('linearized', [xi, u, inp_args['M_inv'],], [A, C, xi_next, y],
                                                     ['xi', 'tau_input', 'M_inv'], ['A', 'C', 'xi_next', 'y']).expand()
 
     def get_ekf_info(self):
-        return self._xi, self.proc_noise, self.meas_noise
+        return self._xi.get_vars()['xi'], self.proc_noise, self.meas_noise
 
     def get_ekf_init(self):
         return self._state.get_vectors('init', 'cov_init')

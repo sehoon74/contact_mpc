@@ -24,16 +24,6 @@ class ContactMPC():
         self.mpc_params = yaml_load(config_path+'mpc_params.yaml')
         self.ipopt_options = yaml_load(config_path+'ipopt_options.yaml')
 
-        self.tf_buffer = tf.Buffer()
-        self.tf_listener = tf.TransformListener(self.tf_buffer)
-
-        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_callback, queue_size=1)
-        self.joint_pub = rospy.Publisher('joint_states_obs', JointState, queue_size=1)
-        self.bel_pub = rospy.Publisher('belief_obs', JointState, queue_size=1)
-        self.F_pub = rospy.Publisher('est_force', JointState, queue_size=1)
-        self.tcp_pub = rospy.Publisher('tcp_pos', JointState, queue_size=1)
-        self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
-
         robots_obs, robots_mpc, self.contacts = spawn_models(robot_path = config_path+"franka.yaml",
                                                   attr_path  = config_path+"attrs.yaml", 
                                                   contact_path = config_path+"contact.yaml",
@@ -42,8 +32,21 @@ class ContactMPC():
 
         self.observer = EKF_bank(robots_obs, step_size = 1.0/250.0 )
 
-        self.contact_env_pub = {c:rospy.Publisher(c+'/env', PoseStamped, queue_size=1) for c in self.contacts}
-        self.contact_rob_pub = {c:rospy.Publisher(c+'/rob', PoseStamped, queue_size=1) for c in self.contacts}
+        self.tf_buffer = tf.Buffer()
+        self.tf_listener = tf.TransformListener(self.tf_buffer)
+
+        self.joint_pub = rospy.Publisher('joint_states_obs', JointState, queue_size=1)
+        self.bel_pub = rospy.Publisher('belief_obs', JointState, queue_size=1)
+        self.F_pub = rospy.Publisher('est_force', JointState, queue_size=1)
+        self.tcp_pub = rospy.Publisher('tcp_pos', JointState, queue_size=1)
+        self.imp_rest_pub = rospy.Publisher('mpc_imp_rest', PoseStamped)
+        #self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
+
+        self.contact_F_pub = {c:rospy.Publisher(c+'/F', WrenchStamped, queue_size=1) for c in self.contacts}
+        self.contact_rest_pub = {c:rospy.Publisher(c+'/rest', PoseStamped, queue_size=1) for c in self.contacts}
+        self.contact_x_pub = {c:rospy.Publisher(c+'/x', PoseStamped, queue_size=1) for c in self.contacts}
+
+        self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_callback, queue_size=1)
 
         # Set up robot state and MPC state
         self.rob_state = {'imp_stiff':None}
@@ -56,7 +59,9 @@ class ContactMPC():
         self.init_orientation = self.tf_buffer.lookup_transform('panda_link0', 'panda_EE', rospy.Time(0),
                                                                 rospy.Duration(1)).transform.rotation
         # Set up MPC
+        self.rob_state.update(self.observer.get_statedict())
         self.mpc = MPC(robots_mpc,
+                       params=self.rob_state, 
                        mpc_params=self.mpc_params,
                        ipopt_options=self.ipopt_options)
 
@@ -70,18 +75,17 @@ class ContactMPC():
             self.observer.step(q_meas = q_m, tau_meas = tau_m)
             self.publish_observer()
 
-    def publish_contacts(self):
-        for contact in self.contacts:
-            msg_env = build_env_stiff(contact['rest'],contact['stiff'])
-            msg_rob = build_rob_contact(contact['pos'], self.tcp)
-            self.contact_env_pub.publish(msg_env)
-            self.contact_rob_pub.publish(msg_rob)
-            
-            # TODO publish force estimates
+    def publish_contacts(self, odict):
+        for c in self.contacts:
+            msg_F = build_wrench_msg(odict[c+'/F'])
+            msg_rest = build_pose_msg(odict[c+'/rest'])
+            msg_x = build_pose_msg(odict[c+'/x'])
+            self.contact_F_pub[c].publish(msg_F)
+            self.contact_rest_pub[c].publish(msg_rest)
+            self.contact_x_pub[c].publish(msg_x)
 
     def publish_observer(self):
         odict = self.observer.get_ext_state()
-        
         msg_jt    = build_jt_msg(q=odict['q'], dq=odict['dq'])
         msg_F_est = build_jt_msg(q=odict.get('F_ext', np.zeros(3))) 
         msg_tcp   = build_jt_msg(q=odict['p'], dq=odict['dx'])
@@ -93,6 +97,7 @@ class ContactMPC():
             self.F_pub.publish(msg_F_est)
             self.tcp_pub.publish(msg_tcp)
             self.bel_pub.publish(msg_bel)
+            self.publish_contacts(odict)
             
     def publish_imp_rest(self, imp_rest):
         #des_pose_w = compliance_to_world(self.rob_state['pose'], action_to_execute, only_position=True)
@@ -134,7 +139,7 @@ def start_node(config_path, est_pars, sim):
     rospy.sleep(1e-1)  # Sleep so ROS can init
     while not rospy.is_shutdown():
         node.update_state_async()
-        node.control()
+        #node.control()
         rospy.sleep(1e-8)
 
 if __name__ == '__main__':

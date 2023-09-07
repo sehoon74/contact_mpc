@@ -51,8 +51,8 @@ class Robot(DynSys):
             IN: ctrl is an optional controller which binds to tau_input and defines new _input variables
             IN: ee_frame_name is the name in the urdf file for the end-effector
         """
-        self.__subsys = subsys   # subsystems which are coupled to the robot  
-        self.__ctrl = ctrl       # controller which sets tau_input
+        self._subsys = subsys   # subsystems which are coupled to the robot  
+        self._ctrl = ctrl       # controller which sets tau_input
         self.name = name
         
         self.nq, self.fwd_kin, self.mass_fn = load_urdf(urdf_path, ee_frame_name)
@@ -87,7 +87,7 @@ class Robot(DynSys):
 
     def add_subsys_and_ctrl(self):
         """ Add the variables from subsystems and control to the _state and _input sets """
-        for sys in self.__subsys:
+        for sys in self._subsys:
             self._state += sys._state      # Subsys is added to state so it gets vectorized cleanly
         self._xi = self._state.clone_and_vectorize('xi') # State vector, symbolic variable
         self.nx = len(self._xi)
@@ -96,13 +96,13 @@ class Robot(DynSys):
         self.dictize_state = ca.Function('dictize_state', [self._xi['xi']], [*st.values()], ['xi'], [*st.keys()])
 
         self._input = DecisionVarDict(['lb', 'ub']) # Your input has lower / upper bounds, right? 
-        if self.__ctrl:
-            self._param += self.__ctrl._param
-            self._input += self.__ctrl._input
+        if self._ctrl:
+            self._param += self._ctrl._param
+            self._input += self._ctrl._input
             args_dict = self.get_step_args()
             args_dict = self.get_ext_state(args_dict) # add p, R, dx
             q = self._state.get_from_shortname('q')
-            self.tau_input = self.jac(q).T@self.__ctrl.get_force(args_dict)
+            self.tau_input = self.jac(q).T@self._ctrl.get_force(args_dict)
         else:
             self._input.add_vars({'tau_input':ca.DM.zeros(self.nq)})
             self.tau_input = self._input['tau_input']
@@ -111,7 +111,6 @@ class Robot(DynSys):
 
         inp = self._input.get_vars()
         self.dictize_input = ca.Function('dictize_input', [self._u['u']], [*inp.values()], ['u'], [*inp.keys()])
-
 
     def build_inv_mass(self, step_size:float):
         """ Build a function for the inverse mass so it's easily accessed
@@ -132,7 +131,7 @@ class Robot(DynSys):
         dq = self._state.get_from_shortname('dq')
         inp_args = self.get_step_args()
 
-        self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the __subsys
+        self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the _subsys
 
         # Joint acceleration, then integrate
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self.tau_input)
@@ -188,7 +187,7 @@ class Robot(DynSys):
         F_ext = ca.DM.zeros(3)
         arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
         arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
-        for sys in self.__subsys:
+        for sys in self._subsys:
             F_ext += sys.get_force(arg_dict)
         return F_ext
 
@@ -211,10 +210,11 @@ class Robot(DynSys):
         st = {k:v for k, v in st.items()}
         st['p'], st['R'] = self.fwd_kin(st[self.name+'q'])
         st['dx'] = self.tcp_motion(st[self.name+'q'], st[self.name+'dq'])[1]
-        for sys in self.__subsys:
+        st['F_ext'] = self.get_F_ext(st[self.name+'q'], st[self.name+'dq'])
+        for sys in self._subsys:
             st.update(sys.get_ext_state(st))
-        if self.__ctrl:
-            st.update(self.__ctrl.get_ext_state(st))
+        if self._ctrl:
+            st.update(self._ctrl.get_ext_state(st))
         for k in list(st):
             if type(st.get(k)) == ca.DM: st.__setitem__(k, st.get(k).full())
         return st
@@ -254,6 +254,19 @@ class LinearizedRobot(Robot):
     def get_ekf_init(self):
         return self._state.get_vectors('init', 'cov_init')
 
+class SwitchedRobot(Robot):
+    """ Contact forces clipped to be >0 """
+    def __init__(self, urdf_path, **kwargs):
+        super().__init__(urdf_path, **kwargs)
+
+    def get_F_ext(self, q, dq):
+        F_ext = ca.DM.zeros(3)
+        arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
+        arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
+        for sys in self._subsys:
+            F_ext += ca.fmax(sys.get_force(arg_dict), 0.0)
+        return F_ext
+    
 def load_urdf(urdf_path, ee_frame_name):
     model = pin.buildModelsFromUrdf(urdf_path, verbose = True)[0]
     __cmodel = cpin.Model(model)

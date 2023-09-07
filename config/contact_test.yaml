@@ -6,5 +6,5 @@ modes:
 models:
   contact_1: # prefix all contacts with contact if they should be found by MPC solver in cost fn
     pos: [0, 0, 0]
-    stiff: [4e3, 0, 0]
-    rest: [-0.200, 0.180, 0.816]
+    stiff: [4e2, 0, 0]
+    rest: [0.295, 0.180, 0.816]

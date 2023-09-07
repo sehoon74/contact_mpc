@@ -131,18 +131,47 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = []):
                                 subsys = [contact_models[model] for model in contact_params['modes'][mode]])
     return modes_filter, modes_mpc, contact_models
 
-def spawn_mpc(print_level = 0):
+def spawn_switched_models(robot_path, attr_path, contact_path = None, mode = None, sym_vars = []):
+    assert mode, "Please provide the name of the mode to use"
+    robot_params = yaml_load(robot_path)
+    attrs = yaml_load(attr_path)
+    contact_params = yaml_load(contact_path) if contact_path else {}
+    contact_models = {}
+    for model in contact_params.get('models', []):
+        contact_models[model] = Contact(name = model+'/',
+                                        pars = contact_params['models'][model],
+                                        attrs = attrs,
+                                        sym_vars = sym_vars)
+        
+    imp = ImpedanceController(input_vars = ['imp_rest'], attrs = attrs)
+
+    
+    robot = SwitchedRobot(robot_params['urdf_path'],
+                          visc_fric = robot_params['visc_fric'],
+                          attrs = attrs,
+                          name = mode+"/",
+                          ctrl = imp,
+                          subsys = [contact_models[model] for model in contact_params['modes'][mode]])
+    return {mode:robot}, contact_models
+
+    
+def spawn_mpc(print_level = 0, switched = False):
     mpc_params = yaml_load('config/mpc_params.yaml')
     ipopt_options = yaml_load('config/ipopt_options.yaml')
     ipopt_options['ipopt.print_level'] = print_level
 
-    _, robots, contacts = spawn_models(robot_path = "config/franka.yaml",
-                                       attr_path  = "config/attrs.yaml", 
-                                       contact_path = "config/contact_test.yaml",
-                                       sym_vars = [])
+    if not switched:
+        _, robots, contacts = spawn_models(robot_path = "config/franka.yaml",
+                                           attr_path  = "config/attrs.yaml", 
+                                           contact_path = "config/contact_test.yaml",
+                                           sym_vars = [])
+    else:
+        robots, contacts = spawn_switched_models(robot_path = "config/franka.yaml",
+                                           attr_path  = "config/attrs.yaml", 
+                                           contact_path = "config/contact_test.yaml",
+                                           sym_vars = [])
     q0 = np.ones(7)
     dq0 = 0.01*np.ones(7)
-
     params = {'q': q0,
               'dq': dq0,
               'belief_free':0.0,

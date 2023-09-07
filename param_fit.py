@@ -28,7 +28,7 @@ def loss_fn(states, torques, robot, contact, num_pts = 1000):
     #del param['xi']
     for k,v in p.items():
         if 'stiff' in k:
-            loss += 1e-12*ca.sqrt(ca.norm_1(v))
+            loss += 0#1e-8*ca.sqrt(ca.norm_1(v))
         elif 'pos' in k:
             loss += 100000.*v.T@v #+ 100*v[0]*v[0]
     return loss
@@ -41,7 +41,8 @@ def optimize(states, torques, robot, contact):
     nlp = {'x':x, 'f': loss}
 
     opts = {'expand':False,
-            'ipopt.print_level':5}
+            'ipopt.print_level':0,
+            'print_time':False}
 
     solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 

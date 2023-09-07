@@ -145,18 +145,17 @@ def spawn_switched_models(robot_path, attr_path, contact_path = None, mode = Non
         
     imp = ImpedanceController(input_vars = ['imp_rest'], attrs = attrs)
 
-    
     robot = SwitchedRobot(robot_params['urdf_path'],
                           visc_fric = robot_params['visc_fric'],
                           attrs = attrs,
-                          name = mode+"/",
+                          name = "free/",
                           ctrl = imp,
                           subsys = [contact_models[model] for model in contact_params['modes'][mode]])
-    return {mode:robot}, contact_models
+    return {'free':robot}, contact_models
 
     
 def spawn_mpc(print_level = 0, switched = False):
-    mpc_params = yaml_load('config/mpc_params.yaml')
+    mpc_params = yaml_load('config/mpc_params_test.yaml')
     ipopt_options = yaml_load('config/ipopt_options.yaml')
     ipopt_options['ipopt.print_level'] = print_level
 
@@ -167,11 +166,12 @@ def spawn_mpc(print_level = 0, switched = False):
                                            sym_vars = [])
     else:
         robots, contacts = spawn_switched_models(robot_path = "config/franka.yaml",
-                                           attr_path  = "config/attrs.yaml", 
-                                           contact_path = "config/contact_test.yaml",
-                                           sym_vars = [])
-    q0 = np.ones(7)
-    dq0 = 0.01*np.ones(7)
+                                                 attr_path  = "config/attrs.yaml", 
+                                                 contact_path = "config/contact_test.yaml",
+                                                 mode='point',
+                                                 sym_vars = [])
+    q0 = 1*np.ones(7)
+    dq0 = 1.5*np.ones(7)
     params = {'q': q0,
               'dq': dq0,
               'belief_free':0.0,

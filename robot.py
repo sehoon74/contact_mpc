@@ -155,8 +155,6 @@ class Robot(DynSys):
                                     [xi_next, cost],
                                     ['xi', 'u', *param_args.keys()],
                                     ['xi', 'cost'], jit_options).expand()
-
-        
         return self.step_vec
 
     def build_rollout(self, H, num_samples, jit = False):

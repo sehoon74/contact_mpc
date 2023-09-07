@@ -2,13 +2,13 @@ H: 20
 dt: 0.04
 
 vel_cost: 0.05
-des_pose: [-0.1, 0.2, 0.5]
+des_pose: [0.25, 0.0, 0.6]
 
-imp_cost: 0.1
+imp_cost: 5.0
 max_imp_force: 100
 
 force_cost: 5e-4
-force_setpoint: 15
+force_setpoint: 5
 
 jit: false
 

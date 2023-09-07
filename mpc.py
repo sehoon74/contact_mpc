@@ -57,10 +57,10 @@ class MPC:
         cost += self.mpc_params['imp_cost']*ca.sumsqr(ext_st['p']-st['imp_rest'])
 
         for k in ext_st:
-            if 'contact' in k and k[-1] == 'F':
+            if 'contact' in k and k[-1] == 'F' and self.mpc_params['force_cost']:
                 pass
-#                print(f'Adding contact setpoint cost for {k}')
-#                cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
+                print(f'Adding contact setpoint cost for {k}')
+                cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
         st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
         return st_cost
 
@@ -76,7 +76,7 @@ class MPC:
         step_inputs = self.__vars.get_vars()
         step_inputs['imp_stiff'] = self.__pars['imp_stiff']
         step_inputs['M_inv'] = self.__pars['M_inv']
-        xi0 = dict(q = params0['q'], dq = params0['dq'])
+        xi0 = dict(q = self.__pars['q'], dq = self.__pars['dq'])
         for name, rob in self.robots.items():
             traj, cost, cont_const = mult_shoot_rollout(rob, self.H, xi0, **step_inputs)
             self.__vars += traj
@@ -155,7 +155,6 @@ class MPC:
             res.update(rob.get_statedict(best_xi))
         res.update({k:v for k,v in params.items() if not k in ['q', 'dq']})
         return best_cost, res
-
     
 def mult_shoot_rollout(sys, H, xi0, **step_inputs):
     name = sys.name

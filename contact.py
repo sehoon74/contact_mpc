@@ -24,11 +24,11 @@ class Contact(DynSys):
         self.name = name
         self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})     
         self.build_vars(sym_vars, name, attrs)
-        self.build_contact()   
+        self.build_contact()
     
     def build_vars(self, sym_vars, name, attrs):
         self._state = DecisionVarDict(attr_names = list(attrs.keys()), name = name)
-        if sym_vars:
+        if sym_vars is not []:
             init = {k: self._pars[k] for k in sym_vars}
             self._state.add_vars(init = init, **attrs)
             self._pars.update(self._state)
@@ -43,7 +43,7 @@ class Contact(DynSys):
 
     """
     Build the contact forces and torques
-    """    
+    """
     def build_contact(self):
         p = ca.SX.sym('p', 3)
         R = ca.SX.sym('R', 3, 3)

@@ -3,11 +3,11 @@ modes:
   plane: [contact_1]
 #  hinge: [contact_1, contact_2]
 models:
-  contact_1: # plane
-    pos: [0.2, -0.2, 0.2]
+  contact_1: # yellow contact 
+    pos: [0.0, 0.0, 0.3]
     stiff: [0, 0, 500]
     #rest: [0.003, -0.03, 0.2604]
-    rest: [0.45, -0.43, -0.02]
+    rest: [0.45, -0.43, 0.003]
 #  contact_2:
 #    pos: [0.013, 0.018, 0.0]
 #    stiff: [0, 2000, 0]

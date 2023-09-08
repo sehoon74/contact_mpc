@@ -21,15 +21,16 @@ class ContactMPC():
         An observer runs on callback for joint_states, updating any estimate on robot state
         The MPC runs in ::control(), using the current state of observer
     """
-    def __init__(self, config_path, est_pars = [], sim = False, debug = False):#
+    def __init__(self, config_path, sim = False, debug = False):#
         self.debug = debug
         self.mpc_params = yaml_load(config_path+'mpc_params.yaml')
         self.ipopt_options = yaml_load(config_path+'ipopt_options.yaml')
 
+
         robots_obs, robots_mpc, self.contacts = spawn_models(robot_path = config_path+"franka.yaml",
                                                              attr_path  = config_path+"attrs.yaml", 
-                                                             contact_path = config_path+"contact.yaml",
-                                                             sym_vars = est_pars)
+                                                             contact_path = config_path+"contact.yaml")
+
         self.nq = robots_obs['free'].nq
 
         self.observer = EKF_bank(robots_obs, step_size = 1.0/100.0 )
@@ -151,9 +152,9 @@ class ContactMPC():
             t_stats = np.array(self.timelist)
             print(f"Cold Start: {t_stats[0]}, Mean: {np.mean(t_stats[1:])}, Min: {min(t_stats[1:])}, Max: {max(t_stats[1:])}")
 
-def start_node(config_path, est_pars, sim, debug):
+def start_node(config_path, sim, debug):
     rospy.init_node('contact_mpc')
-    node = ContactMPC(config_path = config_path, est_pars = est_pars, sim = sim, debug = debug)
+    node = ContactMPC(config_path = config_path, sim = sim, debug = debug)
     rospy.on_shutdown(node.shutdown)  # Set shutdown to be executed when ROS exits
     rospy.sleep(1e-1)  # Sleep so ROS can init
     while not rospy.is_shutdown():
@@ -166,7 +167,6 @@ if __name__ == '__main__':
     parser.add_argument("--bag", default="", help="Optimize params on this bag")
     parser.add_argument("--opt_par", default=False, action='store_true',
                         help="Optimize the parameters")
-    parser.add_argument("--est_par", default="", help="Estimate this param online")
     parser.add_argument("--config_path", default="config/", help="Directory with config files")
     parser.add_argument("--sim", default=False, action='store_true',
                         help="If using a bag file")
@@ -175,10 +175,9 @@ if __name__ == '__main__':
 
     if args.opt_par:
         if args.bag == "": rospy.signal_shutdown("Need bag to optimize params from")
-        generate_traj(args.bag, est_pars)
+        generate_traj(args.bag)
         param_fit(args.bag)
     else:
         start_node(config_path = args.config_path,
-                   est_pars = [args.est_par],
                    sim = args.sim,
                    debug = args.debug)

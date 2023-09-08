@@ -13,7 +13,6 @@ ipopt.acceptable_tol: 1.0e-5
 ipopt.acceptable_iter: 5
 
 ipopt.bound_relax_factor: 1.0e-04
-
 ipopt.fixed_variable_treatment: 'make_constraint'
 
 ipopt.mu_strategy: adaptive

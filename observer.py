@@ -5,14 +5,15 @@ from scipy.stats import multivariate_normal
 
 sym = ca.SX.sym
 # ~3x speedup from JIT
-jit_opts = {} #{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+
+jit_opts = {}#{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
 
 def build_step_fn(robot):
     # Build a static KF update w arguments of mu, sigma, tau and measured q
     mu, proc_noise, meas_noise= robot.get_ekf_info()
-    
+
     M_inv = sym('M_inv', robot.nq, robot.nq)
-    
+
     A, C, mu_next, y = robot.linearized(mu, ca.DM.zeros(robot.nq), M_inv)  # get linearized state and observation matrices wrt states
 
     tau_meas = sym('tau_meas', robot.nq)
@@ -21,7 +22,7 @@ def build_step_fn(robot):
 
     cov = sym('cov', mu.shape[0], mu.shape[0])
     cov_next = A@cov@(A.T) + proc_noise
-    
+
     L = cov_next@C.T@ca.inv(C@cov_next@(C.T) + meas_noise)  # calculate Kalman gain
     S_hat = C@cov_next@(C.T) + meas_noise
     [Q, R] = ca.qr(S_hat)  # QR decomposition for evaluating determinant efficiently
@@ -43,7 +44,7 @@ class EKF():
     def __init__(self, robot, step_size):
         robot.build_step(step_size)
         xi_init, cov_init = robot.get_ekf_init()
-        self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)} 
+        self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)}
         self.step_fn = build_step_fn(robot)
         self.robot = robot
         self.nq = robot.nq
@@ -59,10 +60,11 @@ class EKF():
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
         self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
+        #print(f"exp: {res['y'][7:]}, \nmeas: {tau_meas}")
 
     def get_statedict(self):
         return self.robot.get_statedict(self.x['mu'])
-    
+
     def get_ext_state(self):
         d = self.robot._state.dictize(self.x['mu'])
         return self.robot.get_ext_state(d)
@@ -76,31 +78,33 @@ class EKF_bank():
     def step(self, q_meas, tau_meas, M_inv = None):
         for robot, ekf in self.ekfs.items():
             ekf.step(q_meas, tau_meas, M_inv)
-            self.x['belief'][robot] = ekf.likelihood
-        likelihood_sum = sum(ekf.likelihood for ekf in self.ekfs.values())
+            self.x['belief'][robot] = ekf.likelihood#ca.exp(ekf.likelihood)
+            
+        likelihood_sum = sum(ekf.likelihood for ekf in self.ekfs.values())#sum(ca.exp(ekf.likelihood) for ekf in self.ekfs.values())
         for robot, ekf in self.ekfs.items():
             self.x['belief'][robot] *= 1/likelihood_sum
-            
+
     def get_statedict(self):
         # Return the estimated state as dict, plus the belief
         d = {'belief_'+robot:self.x['belief'][robot] for robot in self.ekfs.keys()}
         for ekf in self.ekfs.values():
             d.update(ekf.get_statedict())
         return d
-    
+
     def get_ext_state(self):
         d = {'belief':self.x['belief']}
-        for ekf in self.ekfs.values():
-            d.update(ekf.get_ext_state())
+        for rob in self.ekfs.keys():
+            if rob != 'free': d.update(self.ekfs[rob].get_ext_state())
+        d.update(self.ekfs['free'].get_ext_state())
         return d
-            
+
 class Particle: #TODO: inherit EKF directly?
     def __init__(self, belief, mu, cov, weight):
         self.belief = belief
         self.mu = mu
         self.cov = cov
         self.weight = weight
-        
+
 class HybridParticleFilter():
     def __init__(self, robots, step_size):
         assert 'free' in robots, "Need at least a free-space model with key: free"

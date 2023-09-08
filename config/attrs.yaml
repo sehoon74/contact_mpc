@@ -11,7 +11,7 @@ cov_init:
   stiff: 6e15
   rest: 1e6
 meas_noise:
-  q: 1e-4
+  q: 1e-5
   tau_ext: 5e0
 lb:
   imp_stiff: 1e-4

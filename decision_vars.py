@@ -94,10 +94,10 @@ class DecisionVarDict(dict):
             v_shape = init.shape
             if len(v_shape) == 0: v_shape = (1, 1)
             if len(v_shape) == 1: v_shape = (*v_shape,1)
-            d[key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
+            d[self.name+key] = ca.reshape(vec[read_pos:read_pos+v_size], v_shape)
             read_pos += v_size
         return d
-           
+
     def get_vectors(self, *attr_names):
         """ Returns a tuple of vectorized attributes """
         return tuple([self.vectorize_attr(attr) for attr in attr_names])

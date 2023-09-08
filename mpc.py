@@ -5,6 +5,8 @@ import casadi as ca
 from decision_vars import *
 from colorednoise import powerlaw_psd_gaussian
 
+jit_opts = {} #{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
+
 class MPC:
     def __init__(self, robots, params, mpc_params, ipopt_options = {}):
         assert 'free' in robots, "Need at least the free-space model w/ key: free!"
@@ -12,6 +14,7 @@ class MPC:
 
         self.mpc_params = mpc_params
         self.ipopt_options = ipopt_options
+        self.ipopt_options.update(jit_opts)
 
         for r in robots.values():
             cost_fn = self.build_cost_fn(r)
@@ -33,8 +36,10 @@ class MPC:
     def solve(self, params):
         r = self.robots['free']
         params['M_inv'] = r.inv_mass_fn(params['q'])
-
         self.__args['p'] = self.__pars.vectorize_dict(d = params)
+
+        if self.mpc_params['num_warmstart']:
+            self.icem_warmstart(params, num_iter=self.mpc_params['num_warmstart'])
 
         sol = self.solver(**self.__args)
         if not ca.DM.is_regular(sol['f']): # true if inf or nan
@@ -58,7 +63,6 @@ class MPC:
 
         for k in ext_st:
             if 'contact' in k and k[-1] == 'F' and self.mpc_params['force_cost']:
-                pass
                 print(f'Adding contact setpoint cost for {k}')
                 cost += self.mpc_params['force_cost']*ca.sumsqr(self.mpc_params['force_setpoint']-ext_st[k])
         st_cost = ca.Function('st_cost', [*st.values()], [cost], [*st.keys()], ['cost'])
@@ -85,25 +89,27 @@ class MPC:
 
         self.g = ca.vertcat(*self.g)
         self.lbg = ca.DM.zeros(self.g.shape[0])
-        self.ubg = ca.DM.zeros(self.g.shape[0])   
+        self.ubg = ca.DM.zeros(self.g.shape[0])
 
-        #self.add_imp_force_const()
+        self.add_imp_force_const()
 
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
-        
+
         prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize_attr())
         self.__args = dict(x0=x0, lbx=lbx, ubx=ubx, lbg=self.lbg, ubg=self.ubg)
         self.solver = ca.nlpsol('solver', 'ipopt', prob, self.ipopt_options)
-        
+
     def add_imp_force_const(self):
         args = self.__vars.get_vars()
         args.update(self.__pars.get_vars())
         ext_st = self.robots['free'].get_ext_state(args)
-        for i in range(self.H):
-            self.g += [ca.sumsqr(ext_st['F_imp'][:,i])]
-        self.lbg += [0]*self.H
-        self.ubg += [self.mpc_params['max_imp_force']**2]*self.H
-        
+        H = 1 # self.H
+        for i in range(H):
+            self.g = ca.vertcat(self.g, ca.sumsqr(ext_st['F_imp'][:,i]))
+        self.lbg = ca.vertcat(self.lbg, ca.DM.zeros(H))
+        self.ubg = ca.vertcat(self.ubg, (self.mpc_params['max_imp_force']**2)*ca.DM.ones(H))
+
+
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
         self.std = 1.0*np.ones((self.nu, self.H))
@@ -114,7 +120,7 @@ class MPC:
         self.mu = res['imp_rest'].full()
         best_cost, res = self.icem_solve(params)
         self.__args['x0'] = self.__vars.vectorize_dict(d = res)
-        return best_cost, res 
+        return best_cost, res
 
     def icem_solve(self, params):
         """ Solve from initial state xi0 for """
@@ -142,7 +148,7 @@ class MPC:
             elite_samples = samples[:, elite_indices, :]
             new_mu  = np.mean(elite_samples, axis = 1)
             new_std = np.var(elite_samples, axis = 1)
-            
+
             self.mu  = self.mpc_params['alpha_mu']*self.mu  + (1-self.mpc_params['alpha_mu'])*new_mu
             self.std = self.mpc_params['alpha_std']*self.std + (1-self.mpc_params['alpha_std'])*new_std
         best_cost = cost[elite_indices[0]]

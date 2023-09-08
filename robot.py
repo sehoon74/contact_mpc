@@ -201,7 +201,7 @@ class Robot(DynSys):
 
     def get_inputvec(self, d):
         return self._input.vectorize_dict(d=d)
-    
+
     def get_ext_state(self, st):
         """ Produce all values which are derived from state.
             IN: complete state as dict

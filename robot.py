@@ -119,7 +119,7 @@ class Robot(DynSys):
         """ Build a function for the inverse mass so it's easily accessed
             IN: step_size, time step length in seconds """
         q = self._state.get_from_shortname('q')
-        M = self.mass_fn(q) + 0.25*ca.DM.eye(self.nq)
+        M = self.mass_fn(q) + 0.5*ca.DM.eye(self.nq)
         inv_mass = ca.inv(M+step_size*self.visc_fric)   # Semi-implicit inverse of mass matrix
         self.inv_mass_fn = ca.Function('inv_mass', [q], [inv_mass], ['q'], ['M_inv']).expand()
 
@@ -136,7 +136,7 @@ class Robot(DynSys):
 
         #self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the _subsys
         self.tau_ext = self.get_tau_ext(q, dq)  # External torques from the _subsys
-        
+
         # Joint acceleration, then integrate
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self.tau_input)
         dq_next = dq + step_size*ddq
@@ -185,10 +185,12 @@ class Robot(DynSys):
     def get_jit_opts(self, jit):
         if jit: return {'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc", "flags": ["-Ofast"]}}
         else: return {}
-        
+
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
         args = self._state.get_vars()
+        args['q'] = q
+        args['dq'] = dq
         for sys in self._subsys:
             F_ext += sys.get_force(args)
         return F_ext
@@ -196,6 +198,8 @@ class Robot(DynSys):
     def get_tau_ext(self, q, dq):
         tau_ext = ca.DM.zeros(self.nq)
         args = self._state.get_vars()
+        args['q'] = q
+        args['dq'] = dq
         for sys in self._subsys:
             tau_ext += sys.get_torque(args)
         return tau_ext
@@ -223,6 +227,7 @@ class Robot(DynSys):
         st['p'], st['R'] = self.fwd_kin(st[self.name+'q'])
         st['dx'] = self.tcp_motion(st[self.name+'q'], st[self.name+'dq'])[1]
         st['F_ext'] = self.get_F_ext(st[self.name+'q'], st[self.name+'dq'])
+        st['tau_ext'] = self.get_tau_ext(st[self.name+'q'], st[self.name+'dq'])
         for sys in self._subsys:
             st.update(sys.get_ext_state(st))
         if self._ctrl:

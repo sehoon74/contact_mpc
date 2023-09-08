@@ -58,6 +58,7 @@ class MPC:
         ext_st = robot.get_ext_state(st)
         cost = 0
         cost += ca.sumsqr(ext_st['p'] - self.mpc_params['des_pose'])
+        #if robot.name == 'free': # non-free modes might have some crazy speed
         cost += self.mpc_params['vel_cost']*ca.sumsqr(ext_st['dx'])
         cost += self.mpc_params['imp_cost']*ca.sumsqr(ext_st['p']-st['imp_rest'])
 

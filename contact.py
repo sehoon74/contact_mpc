@@ -56,13 +56,13 @@ class Contact(DynSys):
 #        F -= ca.times(1e-2*self._pars['stiff'],dx)  # Damping
         tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x))
 #        tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x - 2e-2*dx))
-        self.__F_fn = ca.Function('F', dict(q=q, dq=dq, F=F, **self._state),
+        self._F_fn = ca.Function('F', dict(q=q, dq=dq, F=F, **self._state),
                                 ['q', 'dq', *self._state.keys()], ['F'])
-        self.__tau_fn = ca.Function('tau', dict(q=q, dq=dq, tau=tau, **self._state),
+        self._tau_fn = ca.Function('tau', dict(q=q, dq=dq, tau=tau, **self._state),
                                     ['q', 'dq', *self._state.keys()], ['tau'])
 
         fn_dict = dict(q=q, dq=dq, **self._state)
-        fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F, 'rest':self._pars['rest']})
+        fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F, 'tau':tau, 'rest':self._pars['rest']})
         fn_dict.update(fn_output)
         self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
                                              ['q', 'dq', *self._state.keys()],
@@ -71,9 +71,9 @@ class Contact(DynSys):
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):
         filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
-        return self.__F_fn(**filtered_args)['F']
+        return self._F_fn(**filtered_args)['F']
 
     def get_torque(self, args):
         filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
-        return self.__tau_fn(**filtered_args)['tau']
+        return self._tau_fn(**filtered_args)['tau']
 

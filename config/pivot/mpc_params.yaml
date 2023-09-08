@@ -1,16 +1,17 @@
 H: 10
 dt: 0.04
 
-vel_cost: 0.05
-des_pose: [0.4, -0.4, 0.26]
+vel_cost: 0.0
+
+des_pose: [0.4, -0.4, 0.1]
 
 imp_cost: 0.0
-max_imp_force: 25
+max_imp_force: 15
 
-force_cost: 5e-4
-force_setpoint: 15
+force_cost: 0 # 5e-4
+force_setpoint: 5
 
-num_warmstart: 5
+num_warmstart: 0
 
 jit: false
 

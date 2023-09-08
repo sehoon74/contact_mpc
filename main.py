@@ -143,7 +143,8 @@ class ContactMPC():
         if self.debug:
             ext_st = self.mpc.robots['plane'].get_ext_state(mpc_result)
             #print(f"bel free: {self.rob_state['belief_free']} bel point: {self.rob_state['belief_plane']}")
-            print(ext_st['contact_1/F'])
+            #print(ext_st['contact_1/F'])
+            print(ext_st['p'])
 
     def shutdown(self):
         print("Shutting down node")
@@ -159,7 +160,7 @@ def start_node(config_path, sim, debug):
     rospy.sleep(1e-1)  # Sleep so ROS can init
     while not rospy.is_shutdown():
         node.update_state_async()
-        #node.control()
+        node.control()
         rospy.sleep(1e-8)
 
 if __name__ == '__main__':

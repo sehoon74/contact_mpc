@@ -5,7 +5,7 @@ modes:
 models:
   contact_1: # for the new_franka_contact_contact_1
     pos: [0.0, 0.0, 0.0]
-    stiff: [0, 0, 1000]
+    stiff: [0, 0, 10]
     #rest: [0.003, -0.03, 0.2604]
     rest: [0.3937, -0.3563, 0.232]
 #  contact_2:    

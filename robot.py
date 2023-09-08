@@ -125,7 +125,7 @@ class Robot(DynSys):
             IN: step_size, time step length in seconds """
         self.build_inv_mass(step_size)
         jit_options = self.get_jit_opts(jit)
-        
+
         # Shorthand
         q  = self._state.get_from_shortname('q')
         dq = self._state.get_from_shortname('dq')
@@ -139,14 +139,14 @@ class Robot(DynSys):
         q_next = q + step_size*dq_next
 
         cost = cost_fn.call(inp_args)['cost'] if cost_fn else 0          # Cost for the current step
-        
+
         # Build dictionary step function
         self.step = ca.Function('step', inp_args.values(), [q_next, dq_next, cost],
                                         inp_args.keys(), ['q', 'dq', 'cost'], jit_options).expand()
 
         self.tau_ext_fn = ca.Function('tau_ext', inp_args.values(), [self.tau_ext],
                                         inp_args.keys(), ['tau_ext'])
-        
+
         # Build vectorized step function
         param_args = self._param.get_vars()
         xi_next = ca.vertcat(q_next, dq_next, self._xi['xi'][2*self.nq:])
@@ -207,6 +207,7 @@ class Robot(DynSys):
             IN: complete state as dict
         """
         st = {k:v for k, v in st.items()}
+        res = self.fwd_kin(st[self.name+'q'])
         st['p'], st['R'] = self.fwd_kin(st[self.name+'q'])
         st['dx'] = self.tcp_motion(st[self.name+'q'], st[self.name+'dq'])[1]
         st['F_ext'] = self.get_F_ext(st[self.name+'q'], st[self.name+'dq'])

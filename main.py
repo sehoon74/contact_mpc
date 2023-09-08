@@ -8,7 +8,8 @@ import rospy
 import tf2_ros as tf
 import dynamic_reconfigure.client
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import WrenchStamped, PoseStamped
+from geometry_msgs.msg import WrenchStamped, PoseStamped, TransformStamped, PointStamped
+from tf2_msgs.msg import TFMessage
 
 from observer import *
 from robot import *
@@ -43,8 +44,10 @@ class ContactMPC():
         #self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
 
         self.contact_F_pub = {c:rospy.Publisher(c+'/F', WrenchStamped, queue_size=1) for c in self.contacts}
-        self.contact_rest_pub = {c:rospy.Publisher(c+'/rest', PoseStamped, queue_size=1) for c in self.contacts}
-        self.contact_x_pub = {c:rospy.Publisher(c+'/x', PoseStamped, queue_size=1) for c in self.contacts}
+        self.contact_rest_pub = {c:rospy.Publisher(c+'/rest', PointStamped, queue_size=1) for c in self.contacts}
+        self.contact_x_pub = {c:rospy.Publisher(c+'/x', PointStamped, queue_size=1) for c in self.contacts}
+
+        self.contact_rest_tf = rospy.Publisher('/tf', TFMessage, queue_size=1)
 
         self.joint_sub = rospy.Subscriber('/joint_states', JointState, self.joint_callback, queue_size=1)
 
@@ -61,7 +64,7 @@ class ContactMPC():
         # Set up MPC
         self.rob_state.update(self.observer.get_statedict())
         self.mpc = MPC(robots_mpc,
-                       params=self.rob_state, 
+                       params=self.rob_state,
                        mpc_params=self.mpc_params,
                        ipopt_options=self.ipopt_options)
 
@@ -77,12 +80,15 @@ class ContactMPC():
 
     def publish_contacts(self, odict):
         for c in self.contacts:
-            msg_F = build_wrench_msg(odict[c+'/F'])
-            msg_rest = build_pose_msg(odict[c+'/rest'])
-            msg_x = build_pose_msg(odict[c+'/x'])
-            self.contact_F_pub[c].publish(msg_F)
+            msg_rest = build_point_msg([0,0,0], frame_id=c+'/rest')
+            msg_rest_tf = build_tf_msg(odict[c+'/rest'], child_frame_id=c+'/rest')
+            msg_x = build_point_msg(odict[c+'/x'], frame_id='panda_link0')
+            msg_F = build_wrench_msg(odict[c+'/F'], frame_id=c+'/rest')
+
             self.contact_rest_pub[c].publish(msg_rest)
+            self.contact_rest_tf.publish(msg_rest_tf)
             self.contact_x_pub[c].publish(msg_x)
+            self.contact_F_pub[c].publish(msg_F)
 
     def publish_observer(self):
         odict = self.observer.get_ext_state()

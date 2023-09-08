@@ -9,7 +9,9 @@ from mpc import MPC
 
 import rospy
 from sensor_msgs.msg import JointState
-from geometry_msgs.msg import PoseStamped, WrenchStamped
+from geometry_msgs.msg import PoseStamped, WrenchStamped, TransformStamped, PointStamped
+from tf2_msgs.msg import TFMessage
+
 
 names_franka = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4',
                 'panda_joint5', 'panda_joint6', 'panda_joint7']
@@ -58,6 +60,28 @@ def build_pose_msg(position = None, frame_id = 'panda_link0'):
         msg.pose.position.y = position[1]
         msg.pose.position.z = position[2]
     return msg
+
+def build_point_msg(position = None, frame_id = 'panda_link0'):
+    msg = PointStamped()
+    msg.header.frame_id = frame_id
+    msg.header.stamp = rospy.Time.now()
+    if position is not None:
+        msg.point.x = position[0]
+        msg.point.y = position[1]
+        msg.point.z = position[2]
+    return msg
+
+def build_tf_msg(position, child_frame_id, frame_id = 'panda_link0'):
+    msg = TransformStamped()
+    msg.header.frame_id = frame_id
+    msg.child_frame_id = child_frame_id
+    msg.header.stamp = rospy.Time.now()
+    if position is not None:
+        msg.transform.translation.x = position[0]
+        msg.transform.translation.y = position[1]
+        msg.transform.translation.z = position[2]
+        msg.transform.rotation.w = 1.0
+    return TFMessage([msg])
 
 def build_wrench_msg(F = None, frame_id = 'panda_link0'):
     msg = WrenchStamped()

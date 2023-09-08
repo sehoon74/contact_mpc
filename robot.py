@@ -116,7 +116,7 @@ class Robot(DynSys):
         """ Build a function for the inverse mass so it's easily accessed
             IN: step_size, time step length in seconds """
         q = self._state.get_from_shortname('q')
-        M = self.mass_fn(q) + 0.5*ca.DM.eye(self.nq)
+        M = self.mass_fn(q) + 0.25*ca.DM.eye(self.nq)
         inv_mass = ca.inv(M+step_size*self.visc_fric)   # Semi-implicit inverse of mass matrix
         self.inv_mass_fn = ca.Function('inv_mass', [q], [inv_mass], ['q'], ['M_inv']).expand()
 
@@ -172,7 +172,8 @@ class Robot(DynSys):
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'], jit_options)
         self.rollout_map = self.rollout.map(num_samples, 'thread', 16)
-        
+
+
         self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()],
                                                  [ca.horzcat(xi0, res['xi'][:,:-1])],
                                                  ['xi0', 'u_traj', *par.keys()], ['xi'], jit_options)

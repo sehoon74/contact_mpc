@@ -17,13 +17,13 @@ class MPC:
             cost_fn = self.build_cost_fn(r)
             r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn, jit = mpc_params['jit'])
             r.build_rollout(H = mpc_params['H'], num_samples = mpc_params['num_samples'], jit = mpc_params['jit'])
-            
+ 
         self.H  = mpc_params['H']   # number of mpc steps
         self.nu = robots['free'].nu
 
         self.build_solver(params)
         self.icem_init()
-    
+
     def reset_warmstart(self):
         for arg in ['x0', 'lam_x0', 'lam_g0']:
             if arg not in self.__args: continue
@@ -86,9 +86,9 @@ class MPC:
         self.g = ca.vertcat(*self.g)
         self.lbg = ca.DM.zeros(self.g.shape[0])
         self.ubg = ca.DM.zeros(self.g.shape[0])   
-            
+
         #self.add_imp_force_const()
-     
+
         x, lbx, ubx, x0 = self.__vars.get_vectors('sym', 'lb', 'ub', 'init')
         
         prob = dict(f=J, x=x, g=self.g, p=self.__pars.vectorize_attr())
@@ -106,7 +106,7 @@ class MPC:
         
     def icem_init(self):
         self.mu = np.zeros((self.nu, self.H))
-        self.std = 0.1*np.ones((self.nu, self.H))
+        self.std = 1.0*np.ones((self.nu, self.H))
 
     def icem_warmstart(self, params, num_iter = None):
         if num_iter is not None: self.mpc_params['num_iter'] = num_iter

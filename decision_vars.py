@@ -76,7 +76,8 @@ class DecisionVarDict(dict):
 
     def vectorize_dict(self, d):
         for k in d.keys():
-            if type(d[k]) == float: d[k] = ca.DM(d[k])
+            if type(d[k]) == float or type(d[k]) == int:
+                d[k] = ca.DM(d[k])
         return ca.vertcat(*[d[k].reshape((-1,1)) for k in self.keys()])
     
     def vectorize_attr(self, attr = None):

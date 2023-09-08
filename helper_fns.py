@@ -153,7 +153,6 @@ def spawn_switched_models(robot_path, attr_path, contact_path = None, mode = Non
                           subsys = [contact_models[model] for model in contact_params['modes'][mode]])
     return {'free':robot}, contact_models
 
-    
 def spawn_mpc(print_level = 0, switched = False):
     mpc_params = yaml_load('config/mpc_params_test.yaml')
     ipopt_options = yaml_load('config/ipopt_options.yaml')
@@ -161,12 +160,12 @@ def spawn_mpc(print_level = 0, switched = False):
 
     if not switched:
         _, robots, contacts = spawn_models(robot_path = "config/franka.yaml",
-                                           attr_path  = "config/attrs.yaml", 
+                                           attr_path  = "config/attrs.yaml",
                                            contact_path = "config/contact_test.yaml",
                                            sym_vars = [])
     else:
         robots, contacts = spawn_switched_models(robot_path = "config/franka.yaml",
-                                                 attr_path  = "config/attrs.yaml", 
+                                                 attr_path  = "config/attrs.yaml",
                                                  contact_path = "config/contact_test.yaml",
                                                  mode='point',
                                                  sym_vars = [])

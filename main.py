@@ -39,7 +39,7 @@ class ContactMPC():
         self.bel_pub = rospy.Publisher('belief_obs', JointState, queue_size=1)
         self.F_pub = rospy.Publisher('est_force', JointState, queue_size=1)
         self.tcp_pub = rospy.Publisher('tcp_pos', JointState, queue_size=1)
-        self.imp_rest_pub = rospy.Publisher('mpc_imp_rest', PoseStamped)
+        self.imp_rest_pub = rospy.Publisher('mpc_imp_rest', PoseStamped, queue_size=1)
         #self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
 
         self.contact_F_pub = {c:rospy.Publisher(c+'/F', WrenchStamped, queue_size=1) for c in self.contacts}

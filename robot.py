@@ -88,6 +88,9 @@ class Robot(DynSys):
     def add_subsys_and_ctrl(self):
         """ Add the variables from subsystems and control to the _state and _input sets """
         for sys in self._subsys:
+            sys.build_sys(self._state.get_from_shortname('q'),
+                          self._state.get_from_shortname('dq'),
+                          self.fwd_kin)
             self._state += sys._state      # Subsys is added to state so it gets vectorized cleanly
         self._xi = self._state.clone_and_vectorize('xi') # State vector, symbolic variable
         self.nx = len(self._xi)
@@ -131,8 +134,9 @@ class Robot(DynSys):
         dq = self._state.get_from_shortname('dq')
         inp_args = self.get_step_args()
 
-        self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the _subsys
-
+        #self.tau_ext = self.jac(q).T@self.get_F_ext(q, dq)  # External torques from the _subsys
+        self.tau_ext = self.get_tau_ext(q, dq)  # External torques from the _subsys
+        
         # Joint acceleration, then integrate
         ddq = inp_args['M_inv']@(-self.visc_fric@dq + self.tau_ext + self.tau_input)
         dq_next = dq + step_size*ddq
@@ -184,11 +188,17 @@ class Robot(DynSys):
         
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
-        arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
-        arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
+        args = self._state.get_vars()
         for sys in self._subsys:
-            F_ext += sys.get_force(arg_dict)
+            F_ext += sys.get_force(args)
         return F_ext
+
+    def get_tau_ext(self, q, dq):
+        tau_ext = ca.DM.zeros(self.nq)
+        args = self._state.get_vars()
+        for sys in self._subsys:
+            tau_ext += sys.get_torque(args)
+        return tau_ext
 
     def get_statedict(self, vec):
         return self.dictize_state(xi=vec)
@@ -207,6 +217,8 @@ class Robot(DynSys):
             IN: complete state as dict
         """
         st = {k:v for k, v in st.items()}
+        st['q'] = st[self.name+'q']
+        st['dq'] = st[self.name+'dq']
         res = self.fwd_kin(st[self.name+'q'])
         st['p'], st['R'] = self.fwd_kin(st[self.name+'q'])
         st['dx'] = self.tcp_motion(st[self.name+'q'], st[self.name+'dq'])[1]

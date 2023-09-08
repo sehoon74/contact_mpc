@@ -33,11 +33,11 @@ def build_step_fn(robot):
     mu_next_corr = mu_next + L@(y_meas - y)
     cov_next_corr = (ca.SX.eye(robot.nx)-L@C)@cov_next # corrected covariance
     
-    fn_dict = {'mu':mu, 'cov':cov, 'q_meas':q_meas, 'tau_meas':tau_meas, 'M_inv':M_inv,
+    fn_dict = {'mu':mu, 'cov':cov, 'q_meas':q_meas, 'tau_meas':tau_meas, 'M_inv':M_inv, 'y':y,
                'mu_next':mu_next_corr, 'cov_next':cov_next_corr, 'likelihood': likelihood,}
     return ca.Function('ekf_step', fn_dict,
                        ['mu', 'cov', 'q_meas', 'tau_meas', 'M_inv'], # inputs to casadi function
-                       ['mu_next', 'cov_next', 'likelihood'], jit_opts)
+                       ['mu_next', 'cov_next', 'likelihood', 'y'], jit_opts)
 
 class EKF():
     """ This defines an EKF observer """
@@ -60,7 +60,7 @@ class EKF():
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
         self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
-        #print(f"exp: {res['y'][7:]}, \nmeas: {tau_meas}")
+        #print(f"{self.robot.name} exp: {res['y'][7:]}, \nmeas: {tau_meas}")
 
     def get_statedict(self):
         return self.robot.get_statedict(self.x['mu'])

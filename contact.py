@@ -24,7 +24,7 @@ class Contact(DynSys):
         self.name = name
         self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})     
         self.build_vars(sym_vars, name, attrs)
-        self.build_contact()
+        #self.build_contact()
     
     def build_vars(self, sym_vars, name, attrs):
         self._state = DecisionVarDict(attr_names = list(attrs.keys()), name = name)
@@ -37,32 +37,43 @@ class Contact(DynSys):
     Return the derived state variables, evaluated at the numerical values 
     """
     def get_ext_state(self, num_dict):
-        fn_input = {k:num_dict[k] for k in ['p', 'R']+list(self._state.keys())}
+        fn_input = {k:num_dict[k] for k in ['q', 'dq']+list(self._state.keys())}
         res = self.extended_state_fn(**fn_input)
         return {k:v for k, v in res.items()}
 
     """
     Build the contact forces and torques
     """
-    def build_contact(self):
-        p = ca.SX.sym('p', 3)
-        R = ca.SX.sym('R', 3, 3)
+    def build_sys(self, q, dq, fwd_kin):
+        p, R = fwd_kin(q)
         x = p + R@self._pars['pos']
         disp = x - self._pars['rest']
         n = self._pars['stiff']/ca.norm_2(self._pars['stiff'])
+        j = ca.jacobian(n.T@x, q)
+        dx = j@dq
+
         F = ca.times(self._pars['stiff'],(self._pars['rest']-x)) # Forces in world coord
+#        F -= ca.times(1e-2*self._pars['stiff'],dx)  # Damping
+        tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x))
+#        tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x - 2e-2*dx))
+        self.__F_fn = ca.Function('F', dict(q=q, dq=dq, F=F, **self._state),
+                                ['q', 'dq', *self._state.keys()], ['F'])
+        self.__tau_fn = ca.Function('tau', dict(q=q, dq=dq, tau=tau, **self._state),
+                                    ['q', 'dq', *self._state.keys()], ['tau'])
 
-        self.__F_fn = ca.Function('F', dict(p=p, R=R, F=F, **self._state),
-                                ['p', 'R', *self._state.keys()], ['F'])
-
-        fn_dict = dict(p=p, R=R, **self._state)
+        fn_dict = dict(q=q, dq=dq, **self._state)
         fn_output = NamedDict(self.name, {'x':x,'disp':disp,'n':n,'F':F, 'rest':self._pars['rest']})
         fn_dict.update(fn_output)
         self.extended_state_fn = ca.Function('statedict_fn', fn_dict,
-                                             ['p', 'R', *self._state.keys()],
+                                             ['q', 'dq', *self._state.keys()],
                                              fn_output.keys())
 
     # Filter out unnecessary parameters and call the force fn
     def get_force(self, args):
-        filtered_args = {k:v for k,v in args.items() if k in ['p', 'R']+list(self._state.keys())}
+        filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
         return self.__F_fn(**filtered_args)['F']
+
+    def get_torque(self, args):
+        filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
+        return self.__tau_fn(**filtered_args)['tau']
+

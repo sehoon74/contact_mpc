@@ -1,22 +1,23 @@
-H: 10
+H: 13
 dt: 0.04
 
 vel_cost: 0.0
 
-des_pose: null #[0.35, -0.42, 0.05]
+#des_pose: null #[0.35, -0.42, 0.05]
+#des_pose: [0.35, -0.42, -1.05]
 
 des_pose_mode:
-  free: [null, null, 0.05]
-  plane: [0.35, null, 0.05]
-  hinge: [0.35, null, 0.05]
+  free: [null, null,  0.01]
+  plane: [0.35, null, 0.01]
+  hinge: [0.35, null, 0.01]
 
-imp_cost: 0.0
-max_imp_force: 15
+imp_cost: 0.05
+max_imp_force: 25
 
 force_cost: 0 # 5e-4
 force_setpoint: 5
 
-num_warmstart: 0
+num_warmstart: 10
 
 jit: false
 

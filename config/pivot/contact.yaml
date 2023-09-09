@@ -10,7 +10,7 @@ models:
   contact_2: # hinge
     pos:  [0.135, -0.135, 0.16]
     stiff: [400, 0, 0]
-    rest: [0.30, -0.465, -0.1]
+    rest: [0.30, -0.465, -0.09]
 est_pars: []
 #est_pars:
 #  contact_1: rest

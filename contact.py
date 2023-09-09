@@ -25,7 +25,6 @@ class Contact(DynSys):
         self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})     
         self.build_vars(sym_vars, name, attrs)
 
-    
     def build_vars(self, sym_vars, name, attrs):
         self._state = DecisionVarDict(attr_names = list(attrs.keys()), name = name)
         if sym_vars is not []:
@@ -57,10 +56,16 @@ class Contact(DynSys):
 
         # Torques for dynamics w/ damping
         tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x))
-        tau -= j.T@(ca.norm_2(self._pars['stiff'])*(0.02*dx))
+        #tau -= j.T@(ca.norm_2(self._pars['stiff'])*(0.02*dx))
+
+        tau_clip = j.T@(self._pars['stiff'].T@ca.fmax(self._pars['rest']-x, 0))
+        tau_clip -= j.T@(ca.norm_2(self._pars['stiff'])*(0.02*dx))
         self.__F_fn = ca.Function('F', dict(q=q, dq=dq, F=F, **self._state),
                                 ['q', 'dq', *self._state.keys()], ['F'])
         self.__tau_fn = ca.Function('tau', dict(q=q, dq=dq, tau=tau, **self._state),
+                                    ['q', 'dq', *self._state.keys()], ['tau'])
+
+        self.__tau_clip_fn = ca.Function('tau', dict(q=q, dq=dq, tau=tau_clip, **self._state),
                                     ['q', 'dq', *self._state.keys()], ['tau'])
 
         fn_dict = dict(q=q, dq=dq, **self._state)
@@ -79,3 +84,6 @@ class Contact(DynSys):
         filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
         return self.__tau_fn(**filtered_args)['tau']
 
+    def get_torque_clip(self, args):
+        filtered_args = {k:v for k,v in args.items() if k in ['q', 'dq']+list(self._state.keys())}
+        return self.__tau_clip_fn(**filtered_args)['tau']

@@ -170,7 +170,7 @@ def spawn_switched_models(robot_path, attr_path, contact_path = None, mode = Non
                                         pars = contact_params['models'][model],
                                         attrs = attrs,
                                         sym_vars = sym_vars)
-        
+
     imp = ImpedanceController(input_vars = ['imp_rest'], attrs = attrs)
 
     robot = SwitchedRobot(robot_params['urdf_path'],
@@ -185,7 +185,7 @@ def spawn_mpc(switched = False, path = 'config/test/',
               update_mpc_params = {}, update_contact_params = {}):
     mpc_params = yaml_load(path+'mpc_params.yaml')
     if update_mpc_params: mpc_params.update(update_mpc_params)
-    
+
     ipopt_options = yaml_load(path+'ipopt_options.yaml')
 
     if not switched:

@@ -2,22 +2,25 @@ H: 20
 dt: 0.03
 
 vel_cost: 0.05
-des_pose: [0.25, 0.0, 0.6]
+#des_pose: [0.25, 0.0, 0.6]
+des_pose_mode:
+  free: [0.25, 0.0, 0.6]
+  point: [0.25, 0.0, 0.9]
 
 imp_cost: 0.1
 max_imp_force: 0
 
-force_cost: 5e-5
+force_cost: 0 #5e-4
 force_setpoint: 5
 
-jit: false
+jit: true
 
-num_warmstart: 0
+num_warmstart: 5
 
 # ICEM params
-alpha_mu: 0.9  # tuning parameter for distribution smoothing over time
-alpha_std: 0.5
+alpha_mu: 0.98  # tuning parameter for distribution smoothing over time
+alpha_std: 0.3
 beta: 4.0       # noise tuning parameter
-num_samples: 48 #80 # number of samples for action trajectories --> same of number of filter particles
-num_iter: 80    # number of iterations
-num_elites: 8  # number of elites to maintain
+num_samples: 32 #80 # number of samples for action trajectories --> same of number of filter particles
+num_iter: 30    # number of iterations
+num_elites: 8 # number of elites to maintain

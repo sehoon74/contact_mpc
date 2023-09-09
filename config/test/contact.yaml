@@ -8,4 +8,4 @@ models:
     pos: [0, 0, 0]
     stiff: [7e3, 0, 0]
     #rest: [0.27, 0.180, 0.816] # for switched
-    rest: [0.3, 0.180, 0.816]   # for warmstart mode test
+    rest: [0.29, 0.180, 0.816]   # for warmstart mode test

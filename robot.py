@@ -175,7 +175,8 @@ class Robot(DynSys):
         cost = ca.sum2(res['cost'])
         self.rollout = ca.Function('rollout', [xi0, u, *par.values()], [cost],
                                               ['xi0', 'u_traj', *par.keys()], ['cost'], jit_options)
-        self.rollout_map = self.rollout.map(num_samples, 'thread', 16)
+        #self.rollout_map = self.rollout.map(num_samples)#, 'thread', 8)
+        self.rollout_map = self.rollout.map('map', 'openmp', num_samples, ['M_inv', 'xi0'], [], jit_options ) #'thread', 4)
 
 
         self.rollout_xi = ca.Function('rollout', [xi0, u, *par.values()],
@@ -278,11 +279,22 @@ class SwitchedRobot(Robot):
 
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
-        arg_dict = {k:self._state.get(k) for k in self._state if k not in ['q', 'dq']}
-        arg_dict['p'], arg_dict['R'] = self.fwd_kin(q)
+        args = self._state.get_vars()
+        args['q'] = q
+        args['dq'] = dq
         for sys in self._subsys:
-            F_ext += ca.fmax(sys.get_force(arg_dict), 0.0)
+            F_ext += ca.fmax(sys.get_force(args), 0.0)
         return F_ext
+
+    def get_tau_ext(self, q, dq):
+        tau_ext = ca.DM.zeros(self.nq)
+        args = self._state.get_vars()
+        args['q'] = q
+        args['dq'] = dq
+        for sys in self._subsys:
+            tau_ext += sys.get_torque_clip(args)
+        return tau_ext
+
     
 def load_urdf(urdf_path, ee_frame_name):
     model = pin.buildModelsFromUrdf(urdf_path, verbose = True)[0]

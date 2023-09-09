@@ -62,7 +62,6 @@ class MPC:
             cost += ca.sumsqr(ext_st['p'] - self.mpc_params['des_pose'])
         if self.mpc_params.get('des_pose_mode'):
             d = self.mpc_params['des_pose_mode'].get(robot.name[:-1])
-            print(d)
             for i in range(3):
                 if d[i]: cost += ca.sumsqr(ext_st['p'][i]-d[i])
         #if robot.name == 'free': # non-free modes might have some crazy speed

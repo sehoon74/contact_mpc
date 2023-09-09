@@ -3,13 +3,13 @@ proc_noise:
   dq: 1e4
   pos: 1e1
   stiff: 5e10
-  rest: 1e5
+  rest: 1e8
 cov_init:
   q: 1e-1
   dq: 1e5
   pos: 1.5e6
   stiff: 6e15
-  rest: 1e6
+  rest: 1e8
 meas_noise:
   q: 1e-5
   tau_ext: 5e0

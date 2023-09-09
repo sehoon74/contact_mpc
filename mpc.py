@@ -25,7 +25,7 @@ class MPC:
         self.nu = robots['free'].nu
 
         self.build_solver(params)
-        self.icem_init()
+        if self.mpc_params['num_warmstart']: self.icem_init()
 
     def reset_warmstart(self):
         for arg in ['x0', 'lam_x0', 'lam_g0']:
@@ -79,12 +79,11 @@ class MPC:
     def build_solver(self, params0):
         params0['M_inv'] = self.robots['free'].inv_mass_fn(params0['q'])
         self.__pars = ParamDict(params0)
-
+        
         J = 0
         self.g = []
         self.__vars = DecisionVarDict(attr_names = ['lb', 'ub'])
         self.__vars += self.robots['free'].get_input(self.H)
-
         step_inputs = self.__vars.get_vars()
         step_inputs['imp_stiff'] = self.__pars['imp_stiff']
         step_inputs['M_inv'] = self.__pars['M_inv']

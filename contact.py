@@ -22,7 +22,8 @@ class Contact(DynSys):
     def __init__(self, name:str, pars:dict, sym_vars = [], attrs = {}):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.name = name
-        self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})     
+        self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})
+        
         self.build_vars(sym_vars, name, attrs)
 
     def build_vars(self, sym_vars, name, attrs):
@@ -38,6 +39,7 @@ class Contact(DynSys):
     def get_ext_state(self, num_dict):
         fn_input = {k:num_dict[k] for k in ['q', 'dq']+list(self._state.keys())}
         res = self.extended_state_fn(**fn_input)
+        res.update(fn_input)
         return {k:v for k, v in res.items()}
 
     """

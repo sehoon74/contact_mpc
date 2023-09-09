@@ -9,3 +9,6 @@ models:
     stiff: [7e3, 0, 0]
     #rest: [0.27, 0.180, 0.816] # for switched
     rest: [0.29, 0.180, 0.816]   # for warmstart mode test
+
+est:
+  contact_1: [rest]

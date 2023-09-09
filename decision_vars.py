@@ -116,7 +116,12 @@ class DecisionVarDict(dict):
         return dec_vars
     
     def clone_and_extend(self, H):
-        attrs = {attr:{k[len(self.name):]:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys()} for attr in self.attr_names+['init']}
+        attrs = {}
+        for attr in self.attr_names+['init']:
+            # This is terrible, but basically we don't want the contact params to get cloned when extending state for the MPC
+            #  so we skip if the key doesn't begin with the name, because the name of the contact params isnt prefixed by self.name :(
+            attrs[attr] = {k[len(self.name):]:ca.repmat(self.__vars[attr][k],1,H) for k in self.__vars[attr].keys() if self.name in k}
+            
         return self.clone_from_attrs(**attrs)
     
     def clone_and_vectorize(self, new_vector_name):

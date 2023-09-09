@@ -13,9 +13,9 @@ max_imp_force: 0
 force_cost: 0 #5e-4
 force_setpoint: 5
 
-jit: true
+jit: false
 
-num_warmstart: 5
+num_warmstart: 0
 
 # ICEM params
 alpha_mu: 0.98  # tuning parameter for distribution smoothing over time

@@ -141,7 +141,7 @@ def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = [], upda
         contact_models[model] = Contact(name = model+'/',
                                         pars = contact_params['models'][model],
                                         attrs = attrs,
-                                        sym_vars = sym_vars)
+                                        sym_vars = contact_params['est'][model])
     modes_filter = {}
     for mode in contact_params.get('modes'):
         modes_filter[mode] = LinearizedRobot(robot_params['urdf_path'],

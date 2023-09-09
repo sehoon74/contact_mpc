@@ -189,6 +189,8 @@ class Robot(DynSys):
     def get_F_ext(self, q, dq):
         F_ext = ca.DM.zeros(3)
         args = self._state.get_vars()
+        args['q'] = self._state.get_from_shortname('q')
+        args['dq'] = self._state.get_from_shortname('dq')
         for sys in self._subsys:
             F_ext += sys.get_force(args)
         return F_ext
@@ -196,6 +198,8 @@ class Robot(DynSys):
     def get_tau_ext(self, q, dq):
         tau_ext = ca.DM.zeros(self.nq)
         args = self._state.get_vars()
+        args['q'] = self._state.get_from_shortname('q')
+        args['dq'] = self._state.get_from_shortname('dq')
         for sys in self._subsys:
             tau_ext += sys.get_torque(args)
         return tau_ext

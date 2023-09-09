@@ -39,6 +39,7 @@ class MPC:
         self.__args['p'] = self.__pars.vectorize_dict(d = params)
 
         if self.mpc_params['num_warmstart']:
+            #print(f"warmstarting with {self.mpc_params['num_warmstart']}")
             self.icem_warmstart(params, num_iter=self.mpc_params['num_warmstart'])
 
         sol = self.solver(**self.__args)

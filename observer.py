@@ -62,7 +62,7 @@ class EKF():
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
         self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
-        print(f"{self.robot.name} exp: {res['y'][7:]}, \nmeas: {tau_meas}")
+        #print(f"{self.robot.name} exp: {res['y'][7:]}, \nmeas: {tau_meas}")
 
     def get_statedict(self):
         return self.robot.get_statedict(self.x['mu'])

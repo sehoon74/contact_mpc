@@ -1,15 +1,15 @@
 proc_noise:
   q: 1e1
   dq: 1e4
-  pos: 1e1
+  pos: 1e-8
   stiff: 5e2
-  rest: 1e8
+  rest: 5e-8
 cov_init:
   q: 1e-1
   dq: 1e5
-  pos: 1e6
-  stiff: 1e3
-  rest: 1e5
+  pos: 1e-8
+  stiff: 1e0
+  rest: 5e-8
 meas_noise:
   q: 1e-5
   tau_ext: 5e0

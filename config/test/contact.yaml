@@ -6,10 +6,10 @@ modes:
 models:
   contact_1: # prefix all contacts with contact if they should be found by MPC solver in cost fn
     pos: [0, 0, 0]
-    stiff: [0.1, 0.1, 0.1]
-    #stiff: [5e3, 0, 0]
+    #stiff: [0.1, 0.1, 0.1]
+    stiff: [5e3, 0, 0]
     #rest: [0.27, 0.180, 0.816] # for switched
     rest: [0.29, 0.180, 0.816]   # for warmstart mode test
 
 est:
-  contact_1: [pos, stiff]
+  contact_1: [stiff, rest]

@@ -127,7 +127,8 @@ def yaml_load(path):
         print(f"Error loading yaml from path {path}")
     return params
 
-def spawn_models(robot_path, attr_path, contact_path = None, sym_vars = [], update_contact_params = {}):
+def spawn_models(robot_path, attr_path, contact_path = None,
+                 sym_vars = [], update_contact_params = {}):
     robot_params = yaml_load(robot_path)
     attrs = yaml_load(attr_path)
     attrs_state = {n:attrs[n] for n in ["proc_noise", "cov_init", "meas_noise"]}
@@ -188,6 +189,14 @@ def spawn_mpc(switched = False, path = 'config/test/',
 
     ipopt_options = yaml_load(path+'ipopt_options.yaml')
 
+    q0 = 1*np.ones(7)
+    dq0 = 1.5*np.ones(7)
+    params = {'q': q0,
+              'dq': dq0,
+              'belief_free':0.0,
+              'belief_point':1.0,
+              'imp_stiff':400*ca.DM.ones(3),}
+    
     if not switched:
         _, robots, contacts = spawn_models(robot_path = path+"franka.yaml",
                                            attr_path  = path+"attrs.yaml",
@@ -199,12 +208,6 @@ def spawn_mpc(switched = False, path = 'config/test/',
                                                  contact_path = path+"contact.yaml",
                                                  mode='point',
                                                  sym_vars = [])
-    q0 = 1*np.ones(7)
-    dq0 = 1.5*np.ones(7)
-    params = {'q': q0,
-              'dq': dq0,
-              'belief_free':0.0,
-              'belief_point':1.0,
-              'imp_stiff':400*ca.DM.ones(3),}
+    
     mpc = MPC(robots, params = params, mpc_params=mpc_params, ipopt_options=ipopt_options)
     return mpc, params

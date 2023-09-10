@@ -41,9 +41,11 @@ def build_step_fn(robot):
 
 class EKF():
     """ This defines an EKF observer """
-    def __init__(self, robot, step_size):
+    def __init__(self, robot, step_size, q0 = None):
         robot.build_step(step_size)
         xi_init, cov_init = robot.get_ekf_init()
+        if q0 is not None: # initial joint pose
+            xi_init[:robot.nq] = q0
         self.x = {'mu':xi_init, 'cov':ca.diag(cov_init)}
         self.step_fn = build_step_fn(robot)
         self.robot = robot
@@ -60,7 +62,7 @@ class EKF():
         self.x['mu'] = res['mu_next']
         self.x['cov'] = res['cov_next']
         self.likelihood = res['likelihood'] if res['likelihood'] != 0 else float_info.epsilon
-        #print(f"{self.robot.name} exp: {res['y'][7:]}, \nmeas: {tau_meas}")
+        print(f"{self.robot.name} exp: {res['y'][7:]}, \nmeas: {tau_meas}")
 
     def get_statedict(self):
         return self.robot.get_statedict(self.x['mu'])
@@ -70,8 +72,8 @@ class EKF():
         return self.robot.get_ext_state(d)
 
 class EKF_bank():
-    def __init__(self, robots, step_size):
-        self.ekfs = {k:EKF(v, step_size) for k,v in robots.items()}
+    def __init__(self, robots, step_size, q0 = None):
+        self.ekfs = {k:EKF(v, step_size, q0) for k,v in robots.items()}
         self.x = {}
         self.x['belief'] = {k:1.0/len(robots) for k in robots}
 

@@ -23,7 +23,7 @@ class Contact(DynSys):
         assert set(pars.keys()) == set(['pos', 'stiff', 'rest']), "Contact pars are [pos, stiff, rest]"
         self.name = name
         self._pars = NamedDict(name, {k:ca.DM(v) for k,v in pars.items()})
-        
+
         self.build_vars(sym_vars, name, attrs)
 
     def build_vars(self, sym_vars, name, attrs):

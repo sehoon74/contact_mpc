@@ -1,23 +1,18 @@
 H: 13
-dt: 0.04
+dt: 0.03
 
 vel_cost: 0.0
 
-#des_pose: null #[0.35, -0.42, 0.05]
-#des_pose: [0.35, -0.42, -1.05]
-
 des_pose_mode:
-  free: [null, null,  0.01]
-  plane: [0.35, null, 0.01]
-  hinge: [0.35, null, 0.01]
+  plane: [0.35, -0.35, 0.01]
 
 imp_cost: 0.05
-max_imp_force: 25
+max_imp_force: 15
 
-force_cost: 0 # 5e-4
+force_cost: 0 # 5e-5
 force_setpoint: 5
 
-num_warmstart: 10
+num_warmstart: 0
 
 jit: false
 
@@ -28,5 +23,3 @@ beta: 4.0       # noise tuning parameter
 num_samples: 80 # number of samples for action trajectories --> same of number of filter particles
 num_iter: 120    # number of iterations 
 num_elites: 16  # number of elites to maintain
-
-

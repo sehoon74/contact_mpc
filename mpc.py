@@ -127,7 +127,7 @@ class MPC:
 
     def icem_warmstart(self, params, num_iter = None):
         if num_iter is not None: self.mpc_params['num_iter'] = num_iter
-        res = self.__vars.dictize(self.__args['x0']) # seemed to be hurting somehow?
+        res = self.__vars.dictize(self.__args['x0'])
         self.mu = res['imp_rest'].full()
         best_cost, res = self.icem_solve(params)
         self.__args['x0'] = self.__vars.vectorize_dict(d = res)
@@ -136,7 +136,11 @@ class MPC:
     def icem_solve(self, params):
         """ Solve from initial state xi0 for """
         r = self.robots[self.def_rob]
-        args= dict(xi0 = r.get_statevec({r.name+k:v for k,v in params.items()}),
+        state_args =  {r.name+'q':params['q'],
+                       r.name+'dq':params['dq']}
+        #state_args.update(params)
+        
+        args= dict(xi0 = r.get_statevec(state_args),
                    M_inv = r.inv_mass_fn(params['q']),
                    imp_stiff=params['imp_stiff'])
         elite_samples = powerlaw_psd_gaussian(self.mpc_params['beta'],

@@ -1,14 +1,14 @@
 proc_noise:
   q: 1e1
   dq: 1e4
-  pos: 1e-9
+  pos: 1e-6
   stiff: 1e0
-  rest: 1e-5
+  rest: 1e-6
 cov_init:
   q: 1e-1
   dq: 1e5
-  pos: 1e-8
-  stiff: 1e0
+  pos: 1e-7
+  stiff: 1e1
   rest: 5e-8
 meas_noise:
   q: 1e-5

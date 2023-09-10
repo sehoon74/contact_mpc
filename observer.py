@@ -15,6 +15,7 @@ def build_step_fn(robot):
     M_inv = sym('M_inv', robot.nq, robot.nq)
 
     A, C, mu_next, y = robot.linearized(mu, ca.DM.zeros(robot.nq), M_inv)  # get linearized state and observation matrices wrt states
+    #mu_next[2*robot.nq:] *= 0.95
 
     tau_meas = sym('tau_meas', robot.nq)
     q_meas = sym('q_meas', robot.nq)
@@ -31,6 +32,7 @@ def build_step_fn(robot):
     likelihood = det_S_t**(-1/2)*ca.exp(-0.5*ca.transpose(y_meas-y) @ ca.inv(S_hat) @ (y_meas-y))
 
     mu_next_corr = mu_next + L@(y_meas - y)
+    
     cov_next_corr = (ca.SX.eye(robot.nx)-L@C)@cov_next # corrected covariance
     
     fn_dict = {'mu':mu, 'cov':cov, 'q_meas':q_meas, 'tau_meas':tau_meas, 'M_inv':M_inv, 'y':y,
@@ -81,7 +83,7 @@ class EKF_bank():
         for robot, ekf in self.ekfs.items():
             ekf.step(q_meas, tau_meas, M_inv)
             self.x['belief'][robot] = ekf.likelihood#ca.exp(ekf.likelihood)
-            
+
         likelihood_sum = sum(ekf.likelihood for ekf in self.ekfs.values())#sum(ca.exp(ekf.likelihood) for ekf in self.ekfs.values())
         for robot, ekf in self.ekfs.items():
             self.x['belief'][robot] *= 1/likelihood_sum
@@ -96,8 +98,7 @@ class EKF_bank():
     def get_ext_state(self):
         d = {'belief':self.x['belief']}
         for rob in self.ekfs.keys():
-            if rob != 'free': d.update(self.ekfs[rob].get_ext_state())
-        d.update(self.ekfs['free'].get_ext_state())
+            d.update(self.ekfs[rob].get_ext_state())
         return d
 
 class Particle: #TODO: inherit EKF directly?

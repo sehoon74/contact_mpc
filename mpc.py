@@ -9,7 +9,11 @@ jit_opts = {} #{'jit':True, 'compiler':'shell', "jit_options":{"compiler":"gcc",
 
 class MPC:
     def __init__(self, robots, params, mpc_params, ipopt_options = {}):
-        assert 'free' in robots, "Need at least the free-space model w/ key: free!"
+        if 'free' not in robots:
+            self.def_rob = list(robots.keys())[0]
+            print(f"No free space model, using {self.def_rob} as reference")
+        else:
+            self.def_rob = 'free'
         self.robots = robots
 
         self.mpc_params = mpc_params
@@ -22,7 +26,7 @@ class MPC:
             r.build_rollout(H = mpc_params['H'], num_samples = mpc_params['num_samples'], jit = mpc_params['jit'])
  
         self.H  = mpc_params['H']   # number of mpc steps
-        self.nu = robots['free'].nu
+        self.nu = robots[self.def_rob].nu
 
         self.build_solver(params)
         if self.mpc_params['num_warmstart']: self.icem_init()
@@ -34,7 +38,7 @@ class MPC:
         self.icem_init()
 
     def solve(self, params):
-        r = self.robots['free']
+        r = self.robots[self.def_rob]
         params['M_inv'] = r.inv_mass_fn(params['q'])
         self.__args['p'] = self.__pars.vectorize_dict(d = params)
 
@@ -77,13 +81,13 @@ class MPC:
         return st_cost
 
     def build_solver(self, params0):
-        params0['M_inv'] = self.robots['free'].inv_mass_fn(params0['q'])
+        params0['M_inv'] = self.robots[self.def_rob].inv_mass_fn(params0['q'])
         self.__pars = ParamDict(params0)
         
         J = 0
         self.g = []
         self.__vars = DecisionVarDict(attr_names = ['lb', 'ub'])
-        self.__vars += self.robots['free'].get_input(self.H)
+        self.__vars += self.robots[self.def_rob].get_input(self.H)
         step_inputs = self.__vars.get_vars()
         step_inputs['imp_stiff'] = self.__pars['imp_stiff']
         step_inputs['M_inv'] = self.__pars['M_inv']
@@ -109,7 +113,7 @@ class MPC:
     def add_imp_force_const(self):
         args = self.__vars.get_vars()
         args.update(self.__pars.get_vars())
-        ext_st = self.robots['free'].get_ext_state(args)
+        ext_st = self.robots[self.def_rob].get_ext_state(args)
         H = 1 # self.H
         for i in range(H):
             self.g = ca.vertcat(self.g, ca.sumsqr(ext_st['F_imp'][:,i]))
@@ -131,7 +135,7 @@ class MPC:
 
     def icem_solve(self, params):
         """ Solve from initial state xi0 for """
-        r = self.robots['free']
+        r = self.robots[self.def_rob]
         args= dict(xi0 = r.get_statevec({r.name+k:v for k,v in params.items()}),
                    M_inv = r.inv_mass_fn(params['q']),
                    imp_stiff=params['imp_stiff'])

@@ -21,7 +21,7 @@ class ContactMPC():
         An observer runs on callback for joint_states, updating any estimate on robot state
         The MPC runs in ::control(), using the current state of observer
     """
-    def __init__(self, config_path, sim = False, debug = False):#
+    def __init__(self, config_path, sim = False, debug = False):
         self.debug = debug
         self.mpc_params = yaml_load(config_path+'mpc_params.yaml')
         self.ipopt_options = yaml_load(config_path+'ipopt_options.yaml')
@@ -31,7 +31,7 @@ class ContactMPC():
                                                              attr_path  = config_path+"attrs.yaml", 
                                                              contact_path = config_path+"contact.yaml")
 
-        self.nq = robots_obs['free'].nq
+        self.nq = list(robots_obs.values())[0].nq
 
         self.observer = EKF_bank(robots_obs, step_size = 1.0/100.0 )
 
@@ -46,7 +46,9 @@ class ContactMPC():
         self.imp_rest_pub = rospy.Publisher('cartesian_impedance_example_controller/equilibrium_pose', PoseStamped, queue_size=1)  # impedance rest point publisher
 
         self.contact_F_pub = {c:rospy.Publisher(c+'/F', WrenchStamped, queue_size=1) for c in self.contacts}
+        self.contact_stiff_pub = {c:rospy.Publisher(c+'/stiff', WrenchStamped, queue_size=1) for c in self.contacts}
         self.contact_rest_pub = {c:rospy.Publisher(c+'/rest', PointStamped, queue_size=1) for c in self.contacts}
+        self.contact_rest_w_pub = {c:rospy.Publisher(c+'/rest_w', PointStamped, queue_size=1) for c in self.contacts}
         self.contact_x_pub = {c:rospy.Publisher(c+'/x', PointStamped, queue_size=1) for c in self.contacts}
 
         self.contact_rest_tf = rospy.Publisher('/tf', TFMessage, queue_size=1)
@@ -83,14 +85,18 @@ class ContactMPC():
     def publish_contacts(self, odict):
         for c in self.contacts:
             msg_rest = build_point_msg([0,0,0], frame_id=c+'/rest')
+            msg_rest_w = build_point_msg(odict[c+'/rest'], frame_id='panda_link0')
             msg_rest_tf = build_tf_msg(odict[c+'/rest'], child_frame_id=c+'/rest')
             msg_x = build_point_msg(odict[c+'/x'], frame_id='panda_link0')
-            msg_F = build_wrench_msg(odict[c+'/F'], frame_id=c+'/rest')
+            msg_F = build_wrench_msg(-odict[c+'/F'], frame_id=c+'/rest')
+            msg_stiff = build_wrench_msg(odict[c+'/stiff'], frame_id=c+'/rest')
 
             self.contact_rest_pub[c].publish(msg_rest)
+            self.contact_rest_w_pub[c].publish(msg_rest_w)
             self.contact_rest_tf.publish(msg_rest_tf)
             self.contact_x_pub[c].publish(msg_x)
             self.contact_F_pub[c].publish(msg_F)
+            self.contact_stiff_pub[c].publish(msg_stiff)
 
     def publish_observer(self):
         odict = self.observer.get_ext_state()
@@ -172,6 +178,7 @@ if __name__ == '__main__':
     parser.add_argument("--sim", default=False, action='store_true',
                         help="If using a bag file")
     parser.add_argument("--debug", default=False, action='store_true')
+
     args = parser.parse_args()
 
     if args.opt_par:

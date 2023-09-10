@@ -37,10 +37,12 @@ class Contact(DynSys):
     Return the derived state variables, evaluated at the numerical values 
     """
     def get_ext_state(self, num_dict):
+        ret = {k:v for k, v in self._pars.items()}
         fn_input = {k:num_dict[k] for k in ['q', 'dq']+list(self._state.keys())}
         res = self.extended_state_fn(**fn_input)
-        res.update(fn_input)
-        return {k:v for k, v in res.items()}
+        ret.update(res)
+        ret.update(fn_input)
+        return ret
 
     """
     Build the contact forces and torques

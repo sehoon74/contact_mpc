@@ -17,7 +17,7 @@ max_imp_force: 25
 force_cost: 0 # 5e-4
 force_setpoint: 5
 
-num_warmstart: 10
+num_warmstart: 5
 
 jit: false
 

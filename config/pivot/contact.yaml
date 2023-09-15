@@ -11,5 +11,6 @@ models:
     pos:  [0.135, -0.135, 0.16]
     stiff: [400, 0, 0]
     rest: [0.30, -0.465, -0.0]
-est_pars: []
-
+est:
+  contact_1: []
+  contact_2: []

@@ -5,12 +5,12 @@ modes:
 models:
   contact_1: # plane
     pos: [0.135, -0.135, 0.16]
-    stiff: [0, 0, 400]
-    rest: [0.5, -0.43, -0.09]
+    stiff: [0, 0, 700]
+    rest: [0.5, -0.43, -0.1]
   contact_2: # hinge
     pos:  [0.135, -0.135, 0.16]
-    stiff: [400, 0, 0]
-    rest: [0.30, -0.465, -0.0]
+    stiff: [700, 0, 0]
+    rest: [0.34, -0.465, -0.0]
 est:
   contact_1: []
   contact_2: []

@@ -8,18 +8,18 @@ vel_cost: 0.0
 
 des_pose_mode:
   free: [null, null,  0.01]
-  plane: [0.33, null, 0.01]
-  hinge: [0.33, null, 0.01]
+  plane: [0.32, null, 0.01]
+  hinge: [0.32, null, 0.01]
 
 imp_cost: 0.05
-max_imp_force: 20
+max_imp_force: 25
 
 force_cost: 0 # 5e-4
 force_setpoint: 5
 
-num_warmstart: 0
+num_warmstart: 10
 
-jit: false
+jit: true
 
 # ICEM params
 alpha_mu: 0.9  # tuning parameter for distribution smoothing over time

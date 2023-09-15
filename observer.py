@@ -15,7 +15,7 @@ def build_step_fn(robot):
     M_inv = sym('M_inv', robot.nq, robot.nq)
 
     A, C, mu_next, y = robot.linearized(mu, ca.DM.zeros(robot.nq), M_inv)  # get linearized state and observation matrices wrt states
-    #mu_next[2*robot.nq:] *= 0.95
+    #mu_next[2*robot.nq:] *= 0.99
 
     tau_meas = sym('tau_meas', robot.nq)
     q_meas = sym('q_meas', robot.nq)

@@ -52,14 +52,14 @@ class Contact(DynSys):
         x = p + R@self._pars['pos']
         disp = x - self._pars['rest']
         n = self._pars['stiff']/ca.norm_2(self._pars['stiff'])
-        j = ca.jacobian(n.T@x, q)
+        j = ca.jacobian(x, q)
         dx = j@dq
 
         # Forces for visualization, no damping
         F = ca.times(self._pars['stiff'],(self._pars['rest']-x)) # Forces in world coord
 
         # Torques for dynamics w/ damping
-        tau = j.T@(self._pars['stiff'].T@(self._pars['rest']-x))
+        tau = j.T@F
         #tau -= j.T@(ca.norm_2(self._pars['stiff'])*(0.02*dx))
 
         tau_clip = j.T@(self._pars['stiff'].T@ca.fmax(self._pars['rest']-x, 0))

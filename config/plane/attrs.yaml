@@ -7,7 +7,7 @@ proc_noise:
 cov_init:
   q: 1e-1
   dq: 1e5
-  pos: 1e-7
+  pos: 1e-5
   stiff: 1e1
   rest: 5e-8
 meas_noise:

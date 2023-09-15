@@ -12,7 +12,7 @@ des_pose_mode:
   hinge: [0.32, null, 0.01]
 
 imp_cost: 0.05
-max_imp_force: 25
+max_imp_force: 20
 
 force_cost: 0 # 5e-4
 force_setpoint: 5
@@ -20,7 +20,6 @@ force_setpoint: 5
 num_warmstart: 10
 
 jit: true
-
 # ICEM params
 alpha_mu: 0.9  # tuning parameter for distribution smoothing over time
 alpha_std: 0.5

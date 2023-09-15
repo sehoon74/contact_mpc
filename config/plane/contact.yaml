@@ -3,11 +3,11 @@ modes:
   plane: [contact_1]
 models:
   contact_1: # plane
-    pos: [0.135, -0.135, 0.16]
-    #pos: [0, 0, 0]
+    #pos: [0.135, -0.135, 0.08]
+    pos: [0, 0, 0]
     stiff: [0, 0, 1000]
     #stiff: [1, 1, 1]
     rest: [0.45, -0.43, -0.0]
 
 est:
-  contact_1: [rest]
+  contact_1: [pos]

@@ -1,5 +1,5 @@
 # Print settings
-ipopt.print_level: 5 # 0 to 5, 5 is most print info
+ipopt.print_level: 0 # 0 to 5, 5 is most print info
 print_time: false
 verbose: false
 

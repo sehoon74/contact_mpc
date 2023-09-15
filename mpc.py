@@ -24,7 +24,7 @@ class MPC:
             cost_fn = self.build_cost_fn(r)
             r.build_step(step_size = mpc_params['dt'], cost_fn = cost_fn, jit = mpc_params['jit'])
             r.build_rollout(H = mpc_params['H'], num_samples = mpc_params['num_samples'], jit = mpc_params['jit'])
- 
+
         self.H  = mpc_params['H']   # number of mpc steps
         self.nu = robots[self.def_rob].nu
 

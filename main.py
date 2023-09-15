@@ -147,10 +147,10 @@ class ContactMPC():
 
         self.publish_imp_rest(mpc_result['imp_rest'])  # publish impedance optimized rest pose --> to be sent to franka impedance interface
         if self.debug:
-            ext_st = list(self.mpc.robots.values())[0].get_ext_state(mpc_result)
+            #ext_st = list(self.mpc.robots.values())[0].get_ext_state(mpc_result)
+            ext_st = self.mpc.robots['plane'].get_ext_state(mpc_result)
             #print(f"bel free: {self.rob_state['belief_free']} bel point: {self.rob_state['belief_plane']}")
-            #print(ext_st['contact_1/F'])
-            print(ext_st['contact_1/F'])
+            print(ext_st['p'])
 
     def shutdown(self):
         print("Shutting down node")

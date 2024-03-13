@@ -1,0 +1,10 @@
+sss: 
+{'ant': Array(-100.33597636, dtype=float64), 'halfcheetah': Array(-3.57172856, dtype=float64), 'hopper': Array(-81.59157066, dtype=float64), 
+'humanoid': Array(-505.07250705, dtype=float64), 'inverted_double_pendulum': Array(-935.68257413, dtype=float64), 'inverted_pendulum': Array(-48., dtype=float64), 
+'reacher': Array(14.60156985, dtype=float64), 'pusher': Array(49.11958784, dtype=float64), 'swimmer': Array(-14.3224386, dtype=float64), 'walker2d': Array(-111.88979188, dtype=float64)}
+cem:
+{'ant': Array(-99.98823, dtype=float32), 'halfcheetah': Array(-1.1632789, dtype=float32), 'hopper': Array(-82.06802, dtype=float32), 
+'humanoid': Array(-500.19745, dtype=float32), 'inverted_double_pendulum': Array(-934.7578, dtype=float32), 'inverted_pendulum': Array(-100., dtype=float32), 
+'reacher': Array(21.676346, dtype=float32), 'pusher': Array(47.385094, dtype=float32), 'swimmer': Array(-22.42577, dtype=float32), 'walker2d': Array(-102.98674, dtype=float32)}
+benchmarks:
+{'ant': -3980, 'halfcheetah': -11520, 'hopper': 3150, 'humanoid':5488, 'reacher': -2.6}

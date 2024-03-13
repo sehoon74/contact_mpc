@@ -1,0 +1,6 @@
+__pycache__/*
+vids
+.ipynb_checkpoints/*
+*.so
+*.c
+*.o

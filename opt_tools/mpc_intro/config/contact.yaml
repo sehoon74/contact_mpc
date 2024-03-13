@@ -1,0 +1,11 @@
+# For testing about the joint pose q=ones
+
+modes:
+  free: []
+  point: [contact_1]
+models:
+  contact_1: # prefix all contacts with contact if they should be found by MPC solver in cost fn
+    pos: [0, 0, 0]
+    stiff: [7e3, 0, 0]
+    #rest: [0.27, 0.180, 0.816] # for switched
+    rest: [0.3, 0.180, 0.816]   # for warmstart mode test
